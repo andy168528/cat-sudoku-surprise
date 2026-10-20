@@ -495,7 +495,7 @@
     Sound.error();
     openModal('<p class="modal-kicker">' + esc(chName(game.ch)) + '・' + stageText(game.stage) + '</p>' +
       '<h2 class="modal-title">時間到</h2><div class="ornament">— ✦ —</div>' +
-      '<p class="story">這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。<br>同一題再挑戰一次，這次一定可以！</p>' +
+      '<p class="story">這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。<br>換一個新盤面再挑戰一次，這次一定可以！</p>' +
       '<div class="modal-actions"><button class="btn ghost" data-act="close">稍後</button>' +
       '<button class="btn primary" data-act="retry">重新挑戰</button></div>', function (act) {
       closeModal();
@@ -522,9 +522,10 @@
     var pre = STAGES[stageId(ch, s)];
     if (pre) {
       var toArr = function (str) { return str.split('').map(Number); };
-      return { puzzle: toArr(pre.p), solution: toArr(pre.s), holes: pre.h, grade: pre.g };
+      var t = S.transform(toArr(pre.p), toArr(pre.s));
+      return { puzzle: t.puzzle, solution: t.solution, holes: pre.h, grade: pre.g };
     }
-    var r = S.generate(C(ch).level, { seed: ch * 100000 + s * 1000 });
+    var r = S.generate(C(ch).level, { seed: Math.floor(Math.random() * 1e9) });
     return { puzzle: r.puzzle, solution: r.solution, holes: r.holes, grade: r.grade.level };
   }
 

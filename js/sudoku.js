@@ -416,6 +416,35 @@
     }
   }
 
+  /* ---------------- 等價變換（換數字、換行列、換宮、轉置）---------------- */
+
+  function shuffled(arr, rnd) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function lineMap(rnd) {
+    var map = [];
+    shuffled([0, 1, 2], rnd).forEach(function (band) {
+      shuffled([0, 1, 2], rnd).forEach(function (k) { map.push(band * 3 + k); });
+    });
+    return map;
+  }
+  function transform(puzzle, solution, rnd) {
+    rnd = rnd || Math.random;
+    var digits = [0].concat(shuffled([1, 2, 3, 4, 5, 6, 7, 8, 9], rnd));
+    var rows = lineMap(rnd), cols = lineMap(rnd), flip = rnd() < 0.5;
+    var p = new Array(81), sol = new Array(81);
+    for (var r = 0; r < 9; r++) {
+      for (var c = 0; c < 9; c++) {
+        var src = flip ? cols[c] * 9 + rows[r] : rows[r] * 9 + cols[c];
+        p[r * 9 + c] = digits[puzzle[src]];
+        sol[r * 9 + c] = digits[solution[src]];
+      }
+    }
+    return { puzzle: p, solution: sol };
+  }
+
   /* ---------------- 提示 ---------------- */
 
   function findHint(values, solution) {
@@ -440,6 +469,7 @@
     generateSolution: generateSolution,
     grade: grade,
     generate: generate,
+    transform: transform,
     findHint: findHint,
     computeCandidates: computeCandidates
   };

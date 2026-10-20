@@ -43,4 +43,18 @@ CONFIG.rewards.forEach(r => {
   assert.ok(holes >= lv.minHoles && holes <= lv.maxHoles, r.id + ' holes ' + holes);
   assert.ok(S.grade(p).level >= lv.minTech, r.id + ' grade');
 });
+
+// 重來時的等價變換：盤面不同，但唯一解、挖空數、難度都不變
+Object.keys(STAGES).forEach((id, n) => {
+  const st = STAGES[id];
+  const p = st.p.split('').map(Number), sol = st.s.split('').map(Number);
+  const rnd = S.mulberry32(1234 + n);
+  const t = S.transform(p, sol, rnd);
+  assert.notStrictEqual(t.puzzle.join(''), st.p, id + ' 變換後應不同');
+  assert.strictEqual(t.puzzle.filter(v => !v).length, st.h, id + ' 挖空數不變');
+  for (let i = 0; i < 81; i++) if (t.puzzle[i]) assert.strictEqual(t.puzzle[i], t.solution[i]);
+  assert.strictEqual(S.countSolutions(t.puzzle.slice(), 2), 1, id + ' 變換後仍唯一解');
+  assert.deepStrictEqual(S.solve(t.puzzle.slice()), t.solution, id + ' 解答對應');
+  if (n % 6 === 0) assert.strictEqual(S.grade(t.puzzle).level, st.g, id + ' 難度不變');
+});
 console.log('All stage/config tests passed ✅（48 關皆為唯一解）');
