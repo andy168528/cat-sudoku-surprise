@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>貓咪數獨大驚喜</title>
+  <meta name="description" content="專為老婆設計的高難度貓咪主題數獨，可完全離線遊玩。">
+  <meta name="theme-color" content="#ff8fab">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="貓咪數獨">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>🐾 貓咪數獨</h1>
+      <div class="stats">
+        <span class="stat" aria-label="計時">⏱ <b id="timer">00:00</b></span>
+        <span class="stat" aria-label="錯誤次數">❌ <b id="mistakes">0</b></span>
+        <button id="pauseBtn" class="icon-btn" aria-label="暫停">⏸</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- 遊戲 -->
+      <section id="view-game" class="view active" aria-label="遊戲">
+        <div id="levelTabs" class="level-tabs" role="tablist">
+          <button class="level-tab" data-level="1" role="tab"><b>Level 1</b><small>入門高難</small></button>
+          <button class="level-tab" data-level="2" role="tab"><b>Level 2</b><small>專家挑戰</small></button>
+          <button class="level-tab" data-level="3" role="tab"><b>Level 3</b><small>地獄考驗</small></button>
+        </div>
+        <div class="game-info">
+          <span id="levelLabel">—</span>
+          <span id="gradeLabel"></span>
+          <span id="filledLabel"></span>
+        </div>
+        <div class="board-wrap">
+          <div id="board" class="board" role="grid" aria-label="數獨盤面"></div>
+          <div id="pauseOverlay" class="overlay hidden">
+            <div class="overlay-emoji">😴</div>
+            <p>貓咪陪妳休息中…</p>
+            <button id="resumeBtn" class="btn primary">繼續遊戲</button>
+          </div>
+          <div id="loading" class="overlay hidden">
+            <div class="overlay-emoji spin">🧶</div>
+            <p>貓咪正在努力出題…</p>
+          </div>
+        </div>
+        <div class="tools">
+          <button id="undoBtn" class="tool"><span>↩️</span><small>復原</small></button>
+          <button id="eraseBtn" class="tool"><span>🧽</span><small>清除</small></button>
+          <button id="notesBtn" class="tool"><span>✏️</span><small>筆記 <i id="notesState">關</i></small></button>
+          <button id="hintBtn" class="tool"><span>💡</span><small>提示</small></button>
+          <button id="newBtn" class="tool"><span>🎲</span><small>新局</small></button>
+        </div>
+        <div id="numpad" class="numpad"></div>
+      </section>
+
+      <!-- 貓咪畫廊 -->
+      <section id="view-gallery" class="view" aria-label="貓咪畫廊">
+        <div class="gallery-head">
+          <h2>🖼️ 貓咪畫廊</h2>
+          <p id="galleryProgress">已收集 0 / 0</p>
+          <div class="bar"><span id="galleryBar"></span></div>
+          <button id="galleryModeBtn" class="btn ghost small">切換：彩色寫真</button>
+        </div>
+        <div id="gallery" class="gallery-grid"></div>
+      </section>
+
+      <!-- 設定 -->
+      <section id="view-settings" class="view" aria-label="設定">
+        <h2>⚙️ 設定</h2>
+        <div class="settings-group">
+          <label class="setting-row"><span>🔊 音效與貓叫聲</span><input type="checkbox" class="switch" id="setSound"></label>
+          <label class="setting-row"><span>🚨 即時錯誤提示（填錯變紅）</span><input type="checkbox" class="switch" id="setErrorCheck"></label>
+          <label class="setting-row"><span>🔦 高亮相同數字與行列</span><input type="checkbox" class="switch" id="setHighlight"></label>
+          <label class="setting-row"><span>🧹 填數字後自動清除相關筆記</span><input type="checkbox" class="switch" id="setAutoNotes"></label>
+        </div>
+        <h3>📊 戰績</h3>
+        <div id="statsList" class="stats-grid"></div>
+        <div class="settings-group">
+          <button id="testMeowBtn" class="btn ghost">🐱 測試貓叫聲</button>
+          <button id="resetBtn" class="btn danger">🗑️ 重置所有進度</button>
+        </div>
+        <p id="offlineStatus" class="offline-status">檢查離線狀態中…</p>
+        <p class="version">Cat Sudoku Surprise · v1.0.0</p>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab active" data-view="game"><span>🎮</span><small>遊戲</small></button>
+      <button class="tab" data-view="gallery"><span>🐱</span><small>畫廊</small><i id="galleryBadge" class="badge hidden">NEW</i></button>
+      <button class="tab" data-view="settings"><span>⚙️</span><small>設定</small></button>
+    </nav>
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card" id="modalBody"></div>
+  </div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/sudoku.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
