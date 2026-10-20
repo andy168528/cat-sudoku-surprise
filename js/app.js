@@ -227,7 +227,8 @@
     if (!ready) return;
     var c = C(game.ch), best = progress.best[game.id];
     $('readyKicker').textContent = chName(game.ch) + '・' + stageText(game.stage) + ' / ' + c.stages;
-    $('readyTitle').textContent = game.timeLimitMs ? '限時挑戰' : '準備好了嗎？';
+    var replay = isStageCleared(game.ch, game.stage) ? '重玩・' : '';
+    $('readyTitle').textContent = replay + (game.timeLimitMs ? '限時挑戰' : '準備好了嗎？');
     $('readyInfo').innerHTML =
       '<li>挖空 ' + game.holes + ' 格・' + esc(GRADE_TEXT[game.grade] || '') + '</li>' +
       '<li>' + (c.hints ? '提示 ' + c.hints + ' 次' : '不能使用提示') + '</li>' +
@@ -321,7 +322,7 @@
     if (el.innerHTML !== html) el.innerHTML = html;
     var got = clearedList(ch).length;
     $('stageMeta').textContent = '已過 ' + got + ' / ' + c.stages + ' 關・每關提示 ' + (c.hints ? c.hints + ' 次' : '不能用') +
-      (Object.keys(c.timeLimits || {}).length ? '・「限」為限時關' : '');
+      (Object.keys(c.timeLimits || {}).length ? '・「限」為限時關' : '') + (got ? '・已過關卡可點選重玩' : '');
   }
 
   function flash(i, cls) {
@@ -1093,7 +1094,7 @@
     $('versionName').textContent = CONFIG.appName;
     $('versionPowered').textContent = CONFIG.poweredBy;
     var poolSize = Object.keys(STAGES).reduce(function (n, k) { return n + [].concat(STAGES[k]).length; }, 0);
-    $('appVersion').textContent = 'v1.3.0・題庫 ' + poolSize + ' 題';
+    $('appVersion').textContent = 'v1.4.0・題庫 ' + poolSize + ' 題';
     if (!C(store.current) || !isChapterUnlocked(store.current)) store.current = 1;
     game = store.games[store.current] || null;
     buildLevelTabs();

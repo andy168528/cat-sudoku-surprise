@@ -1,6 +1,7 @@
 // 預先產生所有關卡題目（每關一個題庫，開啟即玩），輸出到 js/stages.js
-// 執行：node scripts/build-stages.js [每關題數，預設 5]
+// 執行：node scripts/build-stages.js [每關題數，預設 20]
 // 已存在的題目會保留，只補產生不足的數量。
+// 只會更難不會更容易：每關第 1 題是基準，其餘題目的挖空數與推理難度都不能低於它。
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -8,7 +9,7 @@ const S = require('../js/sudoku.js');
 const ctx = {};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/config.js'), 'utf8'), ctx);
 const CONFIG = ctx.CAT_SUDOKU_CONFIG;
-const POOL = Number(process.argv[2]) || 5;
+const POOL = Number(process.argv[2]) || 20;
 const FILE = path.join(__dirname, '../js/stages.js');
 
 let old = {};
@@ -21,11 +22,15 @@ const out = {};
 CONFIG.chapters.forEach((c, idx) => {
   for (let s = 1; s <= c.stages; s++) {
     const id = c.key + '-' + String(s).padStart(2, '0');
-    const pool = [].concat(old[id] || []).slice(0, POOL);
+    const lv = S.LEVELS[c.level];
+    const prev = [].concat(old[id] || []);
+    const base = prev[0];
+    const minH = base ? base.h : lv.minHoles, minG = base ? Math.max(base.g, lv.minTech) : lv.minTech;
+    const pool = prev.filter(x => x.h >= minH && x.g >= minG).slice(0, POOL);
     const seen = new Set(pool.map(x => x.s));
     for (let k = 0; pool.length < POOL; k++) {
       const r = S.generate(c.level, { seed: (idx + 1) * 1e7 + s * 1e5 + k, timeLimit: 20000 });
-      if (r.grade.level < S.LEVELS[c.level].minTech || seen.has(r.solution.join(''))) continue;
+      if (r.holes < minH || r.grade.level < minG || seen.has(r.solution.join(''))) continue;
       if (S.countSolutions(r.puzzle, 2) !== 1) throw new Error('not unique ' + id);
       seen.add(r.solution.join(''));
       pool.push({ p: r.puzzle.join(''), s: r.solution.join(''), h: r.holes, g: r.grade.level });

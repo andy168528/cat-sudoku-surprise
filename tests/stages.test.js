@@ -30,13 +30,17 @@ CONFIG.rewards.forEach(r => {
 assert.ok(CONFIG.ultimateReward && CONFIG.ultimateReward.title);
 
 const toArr = s => s.split('').map(Number);
-const POOL = 5;
+const POOL = 20;
 const all = [];
 const solSeen = new Set();
 CONFIG.rewards.forEach(r => {
   const pool = A(STAGES[r.id] || []);
   assert.ok(pool.length >= POOL, r.id + ' 題庫至少 ' + POOL + ' 題，目前 ' + pool.length);
-  pool.forEach((st, k) => all.push(Object.assign({ id: r.id + '#' + k, r: r }, st)));
+  const lv = S.LEVELS[chs[r.ch - 1].level];
+  pool.forEach((st, k) => {
+    assert.ok(st.h >= pool[0].h && st.g >= Math.max(pool[0].g, lv.minTech), r.id + '#' + k + ' 不可比第 1 題容易');
+    all.push(Object.assign({ id: r.id + '#' + k, r: r }, st));
+  });
 });
 all.forEach(st => {
   const r = st.r;
