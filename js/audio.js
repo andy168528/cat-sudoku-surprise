@@ -79,11 +79,14 @@
     osc.stop(t0 + dur + 0.05);
   }
 
-  function playFile(url) {
+  var missing = {};
+
+  function loadBuffer(url) {
     var c = getCtx();
     if (!c) return Promise.reject(new Error('no audio'));
-    var cached = bufferCache[url];
-    var p = cached ? Promise.resolve(cached) : fetch(url)
+    if (bufferCache[url]) return Promise.resolve(bufferCache[url]);
+    if (missing[url]) return Promise.reject(new Error('missing ' + url));
+    return fetch(url)
       .then(function (r) {
         if (!r.ok) throw new Error('missing ' + url);
         return r.arrayBuffer();
@@ -94,9 +97,20 @@
           c.decodeAudioData(ab, resolve, reject);
         });
       })
-      .then(function (buf) { bufferCache[url] = buf; return buf; });
-    return p.then(function (buf) {
+      .then(function (buf) { bufferCache[url] = buf; return buf; })
+      .catch(function (e) { missing[url] = true; throw e; });
+  }
+
+  // 依序嘗試多個路徑，第一個成功的就播放
+  function playFirst(urls) {
+    var list = [].concat(urls || []);
+    function next(i) {
+      if (i >= list.length) return Promise.reject(new Error('no playable file'));
+      return loadBuffer(list[i]).catch(function () { return next(i + 1); });
+    }
+    return next(0).then(function (buf) {
       if (!enabled) return;
+      var c = getCtx();
       var src = c.createBufferSource();
       src.buffer = buf;
       src.connect(c.destination);
@@ -120,14 +134,13 @@
       });
       tone({ freq: 1319, dur: 0.5, vol: 0.12, type: 'sine', delay: 0.5 });
     },
-    // cat: { sound, pitch }
-    meow: function (cat) {
+    // urls：音檔候選路徑（mp3 / m4a）；全部失敗時以 pitch 合成喵聲
+    meow: function (urls, pitch) {
       if (!enabled) return;
-      cat = cat || {};
-      if (cat.sound) {
-        playFile(cat.sound).catch(function () { synthMeow(cat.pitch); });
+      if (urls && urls.length) {
+        playFirst(urls).catch(function () { synthMeow(pitch); });
       } else {
-        synthMeow(cat.pitch);
+        synthMeow(pitch);
       }
     }
   };

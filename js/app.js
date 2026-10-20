@@ -4,7 +4,16 @@
   var S = window.CatSudoku;
   var Sound = window.CatSound;
   var CONFIG = window.CAT_SUDOKU_CONFIG;
-  var CATS = CONFIG.cats;
+  var REWARDS = CONFIG.rewards;
+  var CH = CONFIG.chapters;
+  var ICONS = {
+    lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    sound: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>',
+    photo: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="12" cy="12" r="3.5"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>'
+  };
+  function chName(L) { return CH[L].label + '・' + CH[L].name; }
 
   var KEY_GAMES = 'catSudoku.games.v1';
   var KEY_PROGRESS = 'catSudoku.progress.v1';
@@ -163,7 +172,7 @@
       btn.lastChild.textContent = left > 0 ? left : '✓';
     }
     var cfg = S.LEVELS[game.level];
-    $('levelLabel').textContent = 'Level ' + game.level + '・' + cfg.name + '・挖空 ' + game.holes + ' 格';
+    $('levelLabel').textContent = chName(game.level) + '・' + cfg.name + '・挖空 ' + game.holes + ' 格';
     $('gradeLabel').textContent = '推理：' + (GRADE_TEXT[game.grade] || '—');
     $('filledLabel').textContent = filled + ' / 81';
     $('mistakes').textContent = game.mistakes;
@@ -172,19 +181,34 @@
     $('notesState').textContent = noteMode ? '開' : '關';
     $('pauseOverlay').classList.toggle('hidden', !paused);
     $('board').classList.toggle('blur', paused);
-    $('pauseBtn').textContent = paused ? '▶️' : '⏸';
+    $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
+  }
+
+  function isLevelUnlocked(L) {
+    return L === 1 || (progress.wins[L - 1] || 0) >= 1;
+  }
+
+  function buildLevelTabs() {
+    $('levelTabs').innerHTML = [1, 2, 3].map(function (L) {
+      return '<button class="level-tab" data-level="' + L + '" role="tab"><small>' + esc(CH[L].label) + '</small>' +
+        '<b>' + esc(CH[L].name) + '</b><small>' + esc(CH[L].desc) + '</small><span class="lock">' + ICONS.lock + '</span></button>';
+    }).join('');
   }
 
   function renderTabs() {
     var tabs = document.querySelectorAll('.level-tab');
     for (var t = 0; t < tabs.length; t++) {
       var L = +tabs[t].dataset.level;
+      var unlocked = isLevelUnlocked(L);
       tabs[t].classList.toggle('active', L === store.current);
+      tabs[t].classList.toggle('locked', !unlocked);
+      tabs[t].querySelector('.lock').classList.toggle('hidden', unlocked);
       var g = store.games[L];
       tabs[t].classList.toggle('in-progress', !!(g && !g.completed));
     }
     var hasNew = progress.unlocked.some(function (id) { return progress.seen.indexOf(id) < 0; });
     $('galleryBadge').classList.toggle('hidden', !hasNew);
+    renderCheer();
   }
 
   function flash(i, cls) {
@@ -214,7 +238,7 @@
 
   function input(d) {
     if (!game || game.completed || paused) return;
-    if (selected < 0) { toast('先點一個格子喔 🐾'); return; }
+    if (selected < 0) { toast('先點一個格子喔'); return; }
     if (!canEdit()) { Sound.click(); return; }
     var i = selected;
     if (noteMode) {
@@ -289,7 +313,7 @@
         render();
         flash(i, 'shake');
         Sound.error();
-        toast('這一格好像不太對喔 🙀');
+        toast('這一格好像不太對喔');
         return;
       }
     }
@@ -302,8 +326,8 @@
     if (settings.autoNotes) S.PEERS[h.index].forEach(function (p) { game.notes[p] &= ~bit(h.value); });
     game.hints++;
     game.hinted.push(h.index);
-    Sound.meow({ pitch: 1.3 });
-    toast('💡 提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value);
+    Sound.meow(null, 1.3);
+    toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value);
     persistGame();
     render();
     flash(h.index, 'pop');
@@ -379,6 +403,10 @@
 
   function switchLevel(level) {
     Sound.click();
+    if (!isLevelUnlocked(level)) {
+      toast('先通過「' + CH[level - 1].name + '」才能翻開「' + CH[level].name + '」');
+      return;
+    }
     if (level === store.current && game) {
       if (game.completed) { newGame(level); return; }
       return;
@@ -394,7 +422,7 @@
       persistGame();
       render();
       startTimer();
-      toast('已載入 Level ' + level + ' 的存檔 💾');
+      toast('已翻到「' + CH[level].name + '」的書籤');
     } else {
       newGame(level);
     }
@@ -402,7 +430,7 @@
 
   function requestNewGame() {
     if (hasProgress(game)) {
-      confirmModal('🎲 開新的一局？', '目前這局的進度將會消失喔！', '開新局', function () { newGame(store.current); });
+      confirmModal('開新的一局？', '目前這局的進度將會消失喔！', '開新局', function () { newGame(store.current); });
     } else {
       newGame(store.current);
     }
@@ -410,13 +438,11 @@
 
   /* ---------------- 過關 & 獎勵 ---------------- */
 
-  function meets(u) {
-    if (u.level) return (progress.wins[u.level] || 0) >= (u.wins || 1);
-    return progress.totalWins >= (u.wins || 1);
-  }
-  function unlockText(u) {
-    return u.level ? 'Level ' + u.level + ' 通關 ' + (u.wins || 1) + ' 次' : '累積通關 ' + (u.wins || 1) + ' 次';
-  }
+  function meets(r) { return (progress.wins[r.level] || 0) >= r.wins; }
+  function unlockText(r) { return '通過「' + CH[r.level].name + '」' + r.wins + ' 次'; }
+  function rewardById(id) { return REWARDS.filter(function (r) { return r.id === id; })[0]; }
+  function isUnlocked(r) { return progress.unlocked.indexOf(r.id) >= 0; }
+  function playReward(r) { Sound.meow(CONFIG.mediaFor(r).sounds, r.pitch); }
 
   function checkWin() {
     if (!game || game.completed) return;
@@ -425,130 +451,198 @@
     game.completed = true;
     selected = -1;
     var L = game.level;
+    var wasNextLocked = L < 3 && !isLevelUnlocked(L + 1);
     progress.totalWins++;
     progress.wins[L] = (progress.wins[L] || 0) + 1;
     var prevBest = progress.best[L];
     var isBest = !prevBest || game.elapsedMs < prevBest;
     if (isBest) progress.best[L] = game.elapsedMs;
-    var newly = CATS.filter(function (c) { return progress.unlocked.indexOf(c.id) < 0 && meets(c.unlock); });
-    newly.forEach(function (c) { progress.unlocked.push(c.id); });
+    var newly = REWARDS.filter(function (r) { return !isUnlocked(r) && meets(r); });
+    newly.forEach(function (r) { progress.unlocked.push(r.id); });
     persistProgress();
     persistGame();
     render();
-    setTimeout(function () { celebrate(newly, isBest); }, 350);
+    var nextChapter = wasNextLocked && isLevelUnlocked(L + 1) ? L + 1 : 0;
+    setTimeout(function () { celebrate(newly, isBest, nextChapter); }, 350);
   }
 
-  function celebrate(newly, isBest) {
+  function celebrate(newly, isBest, nextChapter) {
     Sound.win();
-    setTimeout(function () { Sound.meow(newly[0] || CATS[0]); }, 900);
+    if (newly[0]) setTimeout(function () { playReward(newly[0]); }, 900);
     confetti();
+    var L = game.level;
     var msgs = CONFIG.sweetMessages;
     var sweet = personalize(msgs[Math.floor(Math.random() * msgs.length)]);
-    var html = '<div class="modal-emoji bounce">🎉</div>' +
-      '<h2 class="modal-title">恭喜過關！</h2>' +
-      '<p class="level-msg">' + esc(CONFIG.levelMessages[game.level] || '') + '</p>' +
-      '<p class="sweet">💌 ' + esc(sweet) + '<br><small>— 愛妳的' + esc(CONFIG.fromName) + '</small></p>' +
-      '<div class="result-stats"><span>⏱ ' + fmtTime(game.elapsedMs) + (isBest ? ' <b class="best">🏆 新紀錄</b>' : '') + '</span>' +
-      '<span>❌ ' + game.mistakes + '</span><span>💡 ' + game.hints + '</span></div>';
+    var html = '<p class="modal-kicker">' + esc(CH[L].label) + '</p>' +
+      '<h2 class="modal-title">' + esc(CH[L].name) + '・完</h2>' +
+      '<div class="ornament">— ✦ —</div>' +
+      '<p class="level-msg">' + esc(CONFIG.levelMessages[L] || '') + '</p>' +
+      '<p class="sweet">' + esc(sweet) + '<small>— 愛妳的' + esc(CONFIG.fromName) + '</small></p>' +
+      '<div class="result-stats"><span>時間 <b>' + fmtTime(game.elapsedMs) + '</b>' + (isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
+      '<span>失誤 <b>' + game.mistakes + '</b></span><span>提示 <b>' + game.hints + '</b></span></div>';
     if (newly.length) {
-      html += '<h3 class="unlock-title">✨ 解鎖新貓咪！</h3><div class="unlock-list">' +
-        newly.map(function (c) {
-          return '<div class="unlock-item">' + catArt(c, 'photo') + '<b>' + esc(c.name) + '</b></div>';
+      html += '<h3 class="unlock-title">解鎖新收藏</h3><div class="unlock-list">' +
+        newly.map(function (r) {
+          return '<div class="unlock-item">' + catArt(r, 'photo') + '<b>' + esc(r.name) + '</b><small>寫真＋叫聲</small></div>';
         }).join('') + '</div>';
     } else {
-      var next = CATS.filter(function (c) { return progress.unlocked.indexOf(c.id) < 0; })[0];
+      var next = REWARDS.filter(function (r) { return r.level === L && !isUnlocked(r); })[0];
       html += next
-        ? '<p class="next-goal">下一隻貓咪：' + unlockText(next.unlock) + ' 🐾</p>'
-        : '<p class="next-goal">貓咪畫廊已全部收集完成 💖</p>';
+        ? '<p class="next-goal">本章下一個收藏：' + unlockText(next) + '</p>'
+        : '<p class="next-goal">「' + esc(CH[L].name) + '」的收藏已全部到手</p>';
+    }
+    if (nextChapter) {
+      html += '<div class="chapter-unlocked">已解鎖 ' + esc(chName(nextChapter)) + '</div>';
     }
     html += '<div class="modal-actions">' +
-      '<button class="btn ghost" data-act="gallery">🐱 去畫廊</button>' +
-      '<button class="btn primary" data-act="again">再來一局</button></div>';
+      '<button class="btn ghost" data-act="gallery">收藏</button>' +
+      (nextChapter ? '<button class="btn ghost" data-act="next">前往下一章</button>' : '') +
+      '<button class="btn primary" data-act="again">再讀一局</button></div>';
     openModal(html, function (act) {
       if (act === 'gallery') { closeModal(); showView('gallery'); }
+      if (act === 'next') { closeModal(); switchLevel(nextChapter); }
       if (act === 'again') { closeModal(); newGame(game.level); }
     });
   }
 
-  /* ---------------- 貓咪畫廊 ---------------- */
+  /* ---------------- 貓貓打氣 ---------------- */
 
-  function catArt(cat, mode, extraCls) {
-    var cls = 'cat-art ' + (mode === 'shadow' ? 'shadow' : 'photo') + (extraCls ? ' ' + extraCls : '');
-    var inner = '<span class="cat-emoji">' + cat.emoji + '</span>';
-    if (mode !== 'shadow') {
-      if (cat.photo) inner += '<img src="' + esc(cat.photo) + '" alt="' + esc(cat.name) + '" loading="lazy" onerror="this.remove()">';
-      else inner += '<span class="cat-tag">寫真待補</span>';
-    }
-    if (extraCls === 'locked') inner += '<span class="cat-q">?</span>';
-    return '<div class="' + cls + '" style="--c:' + esc(cat.color || '#ffc8dd') + '">' + inner + '</div>';
-  }
+  var cheerIndex = { 1: 0, 2: 0, 3: 0 };
 
-  function modeFor(cat) {
-    return cardMode[cat.id] || (settings.galleryPhoto ? 'photo' : 'shadow');
-  }
-
-  function renderGallery() {
-    var unlockedCount = progress.unlocked.length;
-    $('galleryProgress').textContent = '已收集 ' + unlockedCount + ' / ' + CATS.length + ' 隻貓咪';
-    $('galleryBar').style.width = (unlockedCount / CATS.length * 100) + '%';
-    $('galleryModeBtn').textContent = settings.galleryPhoto ? '🌗 全部切換成：貓咪影子' : '🌈 全部切換成：彩色寫真';
-    $('gallery').innerHTML = CATS.map(function (c) {
-      var unlocked = progress.unlocked.indexOf(c.id) >= 0;
-      var isNew = unlocked && progress.seen.indexOf(c.id) < 0;
-      if (!unlocked) {
-        return '<button class="cat-card locked" data-id="' + c.id + '">' + catArt(c, 'shadow', 'locked') +
-          '<div class="cat-name">???</div><div class="cat-sub">🔒 ' + unlockText(c.unlock) + '</div></button>';
-      }
-      var mode = modeFor(c);
-      return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + c.id + '">' + catArt(c, mode) +
-        '<div class="cat-name">' + esc(c.name) + '</div>' +
-        '<div class="cat-sub"><span class="mini-toggle" data-toggle="' + c.id + '">' +
-        (mode === 'shadow' ? '🌈 看寫真' : '🌗 看影子') + '</span></div></button>';
+  function buildCheer() {
+    $('cheerBtns').innerHTML = [1, 2, 3].map(function (L) {
+      return '<button class="cheer-btn" data-cheer="' + L + '"><span class="ico"></span>' + esc(CH[L].name) + ' <small></small></button>';
     }).join('');
   }
 
-  function onGalleryClick(e) {
-    var tog = e.target.closest('[data-toggle]');
-    var card = e.target.closest('.cat-card');
-    if (!card) return;
-    var cat = CATS.filter(function (c) { return c.id === card.dataset.id; })[0];
-    if (!cat) return;
-    if (card.classList.contains('locked')) {
+  function renderCheer() {
+    var btns = document.querySelectorAll('.cheer-btn');
+    for (var k = 0; k < btns.length; k++) {
+      var L = +btns[k].dataset.cheer;
+      var all = REWARDS.filter(function (r) { return r.level === L; });
+      var got = all.filter(isUnlocked).length;
+      btns[k].classList.toggle('locked', got === 0);
+      btns[k].querySelector('.ico').innerHTML = got ? ICONS.sound : ICONS.lock;
+      btns[k].querySelector('small').textContent = got + '/' + all.length;
+    }
+  }
+
+  function cheer(L, btn) {
+    var list = REWARDS.filter(function (r) { return r.level === L && isUnlocked(r); });
+    if (!list.length) {
+      var first = REWARDS.filter(function (r) { return r.level === L; })[0];
       Sound.click();
-      toast('🔒 ' + unlockText(cat.unlock) + ' 就能解鎖');
+      toast(first ? unlockText(first) + '，即可解鎖「' + CH[L].name + '」打氣叫聲' : '尚無叫聲');
       return;
     }
-    if (tog) {
-      cardMode[cat.id] = modeFor(cat) === 'shadow' ? 'photo' : 'shadow';
+    var r = list[cheerIndex[L] % list.length];
+    cheerIndex[L]++;
+    playReward(r);
+    toast(r.name + ' 為妳打氣！');
+    btn.classList.remove('ringing');
+    void btn.offsetWidth;
+    btn.classList.add('ringing');
+    setTimeout(function () { btn.classList.remove('ringing'); }, 520);
+  }
+
+  /* ---------------- 貓咪收藏 ---------------- */
+
+  window.__catImgNext = function (img) {
+    var list = JSON.parse(img.getAttribute('data-srcs') || '[]');
+    var i = +(img.getAttribute('data-i') || 0) + 1;
+    if (i < list.length) { img.setAttribute('data-i', i); img.src = list[i]; }
+    else img.remove();
+  };
+
+  function catArt(r, mode, extraCls) {
+    var cls = 'cat-art ' + (mode === 'shadow' ? 'shadow' : 'photo') + (extraCls ? ' ' + extraCls : '');
+    var inner = '<span class="cat-emoji">' + r.emoji + '</span>';
+    if (mode !== 'shadow') {
+      var photos = CONFIG.mediaFor(r).photos;
+      inner += '<span class="cat-tag">寫真預留</span>' +
+        '<img src="' + esc(photos[0]) + '" data-srcs="' + esc(JSON.stringify(photos)) + '" alt="' + esc(r.name) + '" onerror="__catImgNext(this)">';
+    }
+    if (extraCls === 'locked') inner += '<span class="cat-q">?</span>';
+    return '<div class="' + cls + '" style="--c:' + esc(r.color || '#ddd6c8') + '">' + inner + '</div>';
+  }
+
+  function modeFor(r) {
+    return cardMode[r.id] || (settings.galleryPhoto ? 'photo' : 'shadow');
+  }
+
+  function renderGallery() {
+    var unlockedCount = REWARDS.filter(isUnlocked).length;
+    $('galleryProgress').textContent = '已收集 ' + unlockedCount + ' / ' + REWARDS.length + '（每個收藏含寫真與叫聲）';
+    $('galleryBar').style.width = (unlockedCount / REWARDS.length * 100) + '%';
+    $('galleryModeBtn').textContent = settings.galleryPhoto ? '全部切換成：貓咪影子' : '全部切換成：彩色寫真';
+    $('gallery').innerHTML = [1, 2, 3].map(function (L) {
+      var list = REWARDS.filter(function (r) { return r.level === L; });
+      var got = list.filter(isUnlocked).length;
+      var head = '<div class="chapter-head"><h3>' + esc(CH[L].label) + '<small>' + esc(CH[L].name) + '</small></h3><span>' + got + ' / ' + list.length + '</span></div>';
+      var note = isLevelUnlocked(L) ? '' : '<p class="chapter-note">先通過「' + esc(CH[L - 1].name) + '」翻開本章</p>';
+      var cards = list.map(function (r) {
+        if (!isUnlocked(r)) {
+          return '<button class="cat-card locked" data-id="' + r.id + '">' + catArt(r, 'shadow', 'locked') +
+            '<div class="cat-name">???</div><div class="cat-sub">' + unlockText(r) + '</div></button>';
+        }
+        var mode = modeFor(r);
+        var isNew = progress.seen.indexOf(r.id) < 0;
+        return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' + catArt(r, mode) +
+          '<div class="cat-name">' + esc(r.name) + '</div>' +
+          '<div class="slots"><span class="slot" data-toggle="' + r.id + '">' + ICONS.photo + (mode === 'shadow' ? '寫真' : '影子') + '</span>' +
+          '<span class="slot" data-play="' + r.id + '">' + ICONS.sound + '叫聲</span></div></button>';
+      }).join('');
+      return '<section class="chapter">' + head + note + '<div class="gallery-grid">' + cards + '</div></section>';
+    }).join('');
+  }
+
+  function markSeen(r) {
+    if (progress.seen.indexOf(r.id) < 0) { progress.seen.push(r.id); persistProgress(); }
+  }
+
+  function onGalleryClick(e) {
+    var card = e.target.closest('.cat-card');
+    if (!card) return;
+    var r = rewardById(card.dataset.id);
+    if (!r) return;
+    if (card.classList.contains('locked')) {
+      Sound.click();
+      toast(unlockText(r) + ' 即可解鎖');
+      return;
+    }
+    if (e.target.closest('[data-toggle]')) {
+      cardMode[r.id] = modeFor(r) === 'shadow' ? 'photo' : 'shadow';
       Sound.click();
       renderGallery();
       return;
     }
-    Sound.meow(cat);
-    if (progress.seen.indexOf(cat.id) < 0) { progress.seen.push(cat.id); persistProgress(); }
-    openCatDetail(cat);
+    playReward(r);
+    markSeen(r);
+    if (e.target.closest('[data-play]')) { renderGallery(); renderTabs(); return; }
+    openCatDetail(r);
   }
 
-  function openCatDetail(cat) {
-    var mode = modeFor(cat);
+  function openCatDetail(r) {
+    var mode = modeFor(r);
     function html() {
-      return catArt(cat, mode, 'detail-art') +
-        '<h2 class="modal-title">' + esc(cat.name) + '</h2>' +
-        '<p class="story">' + esc(cat.story || '') + '</p>' +
+      return '<p class="modal-kicker">' + esc(chName(r.level)) + '</p>' +
+        catArt(r, mode, 'detail-art') +
+        '<h2 class="modal-title">' + esc(r.name) + '</h2>' +
+        '<p class="story">' + esc(r.story || '') + '</p>' +
         '<div class="modal-actions">' +
-        '<button class="btn ghost" data-act="mode">' + (mode === 'shadow' ? '🌈 彩色寫真' : '🌗 貓咪影子') + '</button>' +
-        '<button class="btn ghost" data-act="meow">🔊 喵一下</button>' +
-        '<button class="btn primary" data-act="close">關閉</button></div>';
+        '<button class="btn ghost" data-act="mode">' + (mode === 'shadow' ? '彩色寫真' : '貓咪影子') + '</button>' +
+        '<button class="btn ghost" data-act="meow">播放叫聲</button>' +
+        '<button class="btn primary" data-act="close">闔上</button></div>';
     }
     openModal(html(), function handler(act) {
       if (act === 'mode') {
         mode = mode === 'shadow' ? 'photo' : 'shadow';
-        cardMode[cat.id] = mode;
+        cardMode[r.id] = mode;
         Sound.click();
         openModal(html(), handler);
         renderGallery();
       }
-      if (act === 'meow') Sound.meow(cat);
+      if (act === 'meow') playReward(r);
       if (act === 'close') closeModal();
     });
     renderGallery();
@@ -563,12 +657,12 @@
     $('setHighlight').checked = settings.highlight;
     $('setAutoNotes').checked = settings.autoNotes;
     var rows = [1, 2, 3].map(function (L) {
-      return '<div class="stat-card"><b>Level ' + L + '</b><small>' + S.LEVELS[L].name + '</small>' +
-        '<span>🏁 ' + (progress.wins[L] || 0) + ' 勝</span>' +
-        '<span>🏆 ' + (progress.best[L] ? fmtTime(progress.best[L]) : '—') + '</span></div>';
+      return '<div class="stat-card"><b>' + esc(chName(L)) + '</b><small>' + esc(CH[L].desc) + (isLevelUnlocked(L) ? '' : '・未解鎖') + '</small>' +
+        '<span>通關 ' + (progress.wins[L] || 0) + ' 次</span>' +
+        '<span>最佳 ' + (progress.best[L] ? fmtTime(progress.best[L]) : '—') + '</span></div>';
     });
-    rows.push('<div class="stat-card total"><b>總計</b><span>🎉 ' + progress.totalWins + ' 勝</span>' +
-      '<span>🐱 ' + progress.unlocked.length + '/' + CATS.length + '</span></div>');
+    rows.push('<div class="stat-card"><b>總計</b><small>全部章節</small><span>通關 ' + progress.totalWins + ' 次</span>' +
+      '<span>收藏 ' + REWARDS.filter(isUnlocked).length + ' / ' + REWARDS.length + '</span></div>');
     $('statsList').innerHTML = rows.join('');
   }
 
@@ -583,13 +677,8 @@
           render();
         });
       });
-    $('testMeowBtn').addEventListener('click', function () {
-      var unlocked = CATS.filter(function (c) { return progress.unlocked.indexOf(c.id) >= 0; });
-      var pool = unlocked.length ? unlocked : CATS;
-      Sound.meow(pool[Math.floor(Math.random() * pool.length)]);
-    });
     $('resetBtn').addEventListener('click', function () {
-      confirmModal('🗑️ 重置所有進度？', '戰績、解鎖的貓咪與存檔都會清空，無法復原。', '確定重置', function () {
+      confirmModal('重置所有進度？', '閱讀紀錄、收藏與存檔都會清空，無法復原。', '確定重置', function () {
         stopTimer();
         progress = { totalWins: 0, wins: { 1: 0, 2: 0, 3: 0 }, best: {}, unlocked: [], seen: [] };
         store = { current: 1, games: {} };
@@ -597,7 +686,7 @@
         persistProgress();
         save(KEY_GAMES, store);
         renderSettings();
-        toast('已重置 🧹');
+        toast('已重置');
         newGame(1);
       });
     });
@@ -657,7 +746,7 @@
     canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     canvas.style.display = 'block';
-    var glyphs = ['🐾', '💖', '✨', '🐱', '🌸', '💕'];
+    var glyphs = ['🐾', '✦', '✧', '🐾', '❦'];
     var parts = [];
     for (var i = 0; i < 70; i++) {
       parts.push({
@@ -678,6 +767,7 @@
         ctx.translate(p.x, p.y);
         ctx.rotate(p.r);
         ctx.font = p.s + 'px serif';
+        ctx.fillStyle = '#1d1d1b';
         ctx.fillText(p.g, -p.s / 2, p.s / 2);
         ctx.restore();
       });
@@ -690,8 +780,13 @@
   /* ---------------- 事件綁定 ---------------- */
 
   function bindEvents() {
-    document.querySelectorAll('.level-tab').forEach(function (b) {
-      b.addEventListener('click', function () { switchLevel(+b.dataset.level); });
+    $('levelTabs').addEventListener('click', function (e) {
+      var b = e.target.closest('.level-tab');
+      if (b) switchLevel(+b.dataset.level);
+    });
+    $('cheerBtns').addEventListener('click', function (e) {
+      var b = e.target.closest('.cheer-btn');
+      if (b) cheer(+b.dataset.cheer, b);
     });
     document.querySelectorAll('.tab').forEach(function (b) {
       b.addEventListener('click', function () { Sound.click(); showView(b.dataset.view); });
@@ -742,25 +837,37 @@
   function registerSW() {
     var status = $('offlineStatus');
     if (!('serviceWorker' in navigator)) {
-      status.textContent = '⚠️ 此瀏覽器不支援離線模式';
+      status.textContent = '此瀏覽器不支援離線模式';
       return;
     }
     var hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
-      status.textContent = '✅ 已完成離線快取，飛航模式也能玩';
+      status.textContent = '已完成離線快取，飛航模式也能閱讀';
     }).catch(function () {
-      status.textContent = '⚠️ 離線快取註冊失敗（需透過 https 或 localhost 開啟）';
+      status.textContent = '離線快取註冊失敗（需透過 https 或 localhost 開啟）';
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (hadController) toast('🆕 遊戲已更新，下次開啟即套用新版本');
+      if (hadController) toast('已更新，下次開啟即套用新版本');
     });
   }
 
   /* ---------------- 啟動 ---------------- */
 
   function init() {
+    document.title = CONFIG.appName;
+    $('appName').textContent = CONFIG.appName;
+    $('poweredBy').textContent = CONFIG.poweredBy;
+    $('versionName').textContent = CONFIG.appName;
+    $('versionPowered').textContent = CONFIG.poweredBy;
+    progress.unlocked = progress.unlocked.filter(function (id) { return !!rewardById(id); });
+    if (!isLevelUnlocked(store.current)) {
+      store.current = 1;
+      game = store.games[1] || null;
+    }
+    buildLevelTabs();
+    buildCheer();
     buildBoard();
     buildNumpad();
     bindEvents();

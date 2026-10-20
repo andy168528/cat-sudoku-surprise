@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <title>貓咪數獨大驚喜</title>
-  <meta name="description" content="專為老婆設計的高難度貓咪主題數獨，可完全離線遊玩。">
-  <meta name="theme-color" content="#ff8fab">
+  <title>喵南西北數讀</title>
+  <meta name="description" content="喵南西北數讀：專為老婆設計的高難度貓咪數獨，可完全離線遊玩。Powered by 鴻小兵">
+  <meta name="theme-color" content="#f6f4ef">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="貓咪數獨">
+  <meta name="apple-mobile-web-app-title" content="喵南西北">
   <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -19,22 +19,21 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <h1>🐾 貓咪數獨</h1>
+      <div class="brand">
+        <h1 id="appName">喵南西北數讀</h1>
+        <p id="poweredBy">Powered by 鴻小兵</p>
+      </div>
       <div class="stats">
-        <span class="stat" aria-label="計時">⏱ <b id="timer">00:00</b></span>
-        <span class="stat" aria-label="錯誤次數">❌ <b id="mistakes">0</b></span>
-        <button id="pauseBtn" class="icon-btn" aria-label="暫停">⏸</button>
+        <span class="stat"><small>時間</small><b id="timer">00:00</b></span>
+        <span class="stat"><small>失誤</small><b id="mistakes">0</b></span>
+        <button id="pauseBtn" class="icon-btn" aria-label="暫停"></button>
       </div>
     </header>
 
     <main>
-      <!-- 遊戲 -->
+      <!-- 數讀 -->
       <section id="view-game" class="view active" aria-label="遊戲">
-        <div id="levelTabs" class="level-tabs" role="tablist">
-          <button class="level-tab" data-level="1" role="tab"><b>Level 1</b><small>入門高難</small></button>
-          <button class="level-tab" data-level="2" role="tab"><b>Level 2</b><small>專家挑戰</small></button>
-          <button class="level-tab" data-level="3" role="tab"><b>Level 3</b><small>地獄考驗</small></button>
-        </div>
+        <div id="levelTabs" class="level-tabs" role="tablist"></div>
         <div class="game-info">
           <span id="levelLabel">—</span>
           <span id="gradeLabel"></span>
@@ -43,60 +42,63 @@
         <div class="board-wrap">
           <div id="board" class="board" role="grid" aria-label="數獨盤面"></div>
           <div id="pauseOverlay" class="overlay hidden">
-            <div class="overlay-emoji">😴</div>
-            <p>貓咪陪妳休息中…</p>
-            <button id="resumeBtn" class="btn primary">繼續遊戲</button>
+            <p class="overlay-title">書籤已夾好</p>
+            <p>休息一下，貓咪陪妳。</p>
+            <button id="resumeBtn" class="btn primary">繼續閱讀</button>
           </div>
           <div id="loading" class="overlay hidden">
-            <div class="overlay-emoji spin">🧶</div>
-            <p>貓咪正在努力出題…</p>
+            <p class="overlay-title">翻頁中…</p>
+            <p>貓咪正在出題</p>
           </div>
         </div>
+        <div class="cheer">
+          <span class="cheer-title">貓貓打氣</span>
+          <div id="cheerBtns" class="cheer-btns"></div>
+        </div>
         <div class="tools">
-          <button id="undoBtn" class="tool"><span>↩️</span><small>復原</small></button>
-          <button id="eraseBtn" class="tool"><span>🧽</span><small>清除</small></button>
-          <button id="notesBtn" class="tool"><span>✏️</span><small>筆記 <i id="notesState">關</i></small></button>
-          <button id="hintBtn" class="tool"><span>💡</span><small>提示</small></button>
-          <button id="newBtn" class="tool"><span>🎲</span><small>新局</small></button>
+          <button id="undoBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><small>復原</small></button>
+          <button id="eraseBtn" class="tool"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg><small>清除</small></button>
+          <button id="notesBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><small>筆記 <i id="notesState">關</i></small></button>
+          <button id="hintBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><small>提示</small></button>
+          <button id="newBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg><small>新局</small></button>
         </div>
         <div id="numpad" class="numpad"></div>
       </section>
 
-      <!-- 貓咪畫廊 -->
-      <section id="view-gallery" class="view" aria-label="貓咪畫廊">
-        <div class="gallery-head">
-          <h2>🖼️ 貓咪畫廊</h2>
+      <!-- 收藏 -->
+      <section id="view-gallery" class="view" aria-label="貓咪收藏">
+        <div class="page-head">
+          <h2>貓咪收藏</h2>
           <p id="galleryProgress">已收集 0 / 0</p>
           <div class="bar"><span id="galleryBar"></span></div>
-          <button id="galleryModeBtn" class="btn ghost small">切換：彩色寫真</button>
+          <button id="galleryModeBtn" class="btn ghost small">切換：貓咪影子</button>
         </div>
-        <div id="gallery" class="gallery-grid"></div>
+        <div id="gallery"></div>
       </section>
 
       <!-- 設定 -->
       <section id="view-settings" class="view" aria-label="設定">
-        <h2>⚙️ 設定</h2>
+        <div class="page-head"><h2>設定</h2></div>
         <div class="settings-group">
-          <label class="setting-row"><span>🔊 音效與貓叫聲</span><input type="checkbox" class="switch" id="setSound"></label>
-          <label class="setting-row"><span>🚨 即時錯誤提示（填錯變紅）</span><input type="checkbox" class="switch" id="setErrorCheck"></label>
-          <label class="setting-row"><span>🔦 高亮相同數字與行列</span><input type="checkbox" class="switch" id="setHighlight"></label>
-          <label class="setting-row"><span>🧹 填數字後自動清除相關筆記</span><input type="checkbox" class="switch" id="setAutoNotes"></label>
+          <label class="setting-row"><span>音效與貓叫聲</span><input type="checkbox" class="switch" id="setSound"></label>
+          <label class="setting-row"><span>即時錯誤提示（填錯標示）</span><input type="checkbox" class="switch" id="setErrorCheck"></label>
+          <label class="setting-row"><span>高亮相同數字與行列</span><input type="checkbox" class="switch" id="setHighlight"></label>
+          <label class="setting-row"><span>填數字後自動清除相關筆記</span><input type="checkbox" class="switch" id="setAutoNotes"></label>
         </div>
-        <h3>📊 戰績</h3>
+        <h3 class="section-title">閱讀紀錄</h3>
         <div id="statsList" class="stats-grid"></div>
         <div class="settings-group">
-          <button id="testMeowBtn" class="btn ghost">🐱 測試貓叫聲</button>
-          <button id="resetBtn" class="btn danger">🗑️ 重置所有進度</button>
+          <button id="resetBtn" class="btn danger">重置所有進度</button>
         </div>
         <p id="offlineStatus" class="offline-status">檢查離線狀態中…</p>
-        <p class="version">Cat Sudoku Surprise · v1.0.0</p>
+        <p class="version"><span id="versionName">喵南西北數讀</span> · v1.1.0 · <span id="versionPowered">Powered by 鴻小兵</span></p>
       </section>
     </main>
 
     <nav class="tabbar">
-      <button class="tab active" data-view="game"><span>🎮</span><small>遊戲</small></button>
-      <button class="tab" data-view="gallery"><span>🐱</span><small>畫廊</small><i id="galleryBadge" class="badge hidden">NEW</i></button>
-      <button class="tab" data-view="settings"><span>⚙️</span><small>設定</small></button>
+      <button class="tab active" data-view="game"><svg viewBox="0 0 24 24"><path d="M2 4h7a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h8z"/></svg><small>數讀</small></button>
+      <button class="tab" data-view="gallery"><svg viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><small>收藏</small><i id="galleryBadge" class="badge hidden">NEW</i></button>
+      <button class="tab" data-view="settings"><svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><small>設定</small></button>
     </nav>
   </div>
 

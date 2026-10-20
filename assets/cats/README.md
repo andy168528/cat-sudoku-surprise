@@ -1,7 +1,15 @@
-# 貓咪寫真放這裡 📸
+# 貓咪寫真（照片）
 
-1. 把照片放進這個資料夾，例如 `mimi.jpg`（建議正方形、寬 600px 以內、JPG/WebP，檔案小比較省快取空間）。
-2. 打開 `js/config.js`，把對應貓咪的 `photo` 改成 `'assets/cats/mimi.jpg'`。
-3. 把 `sw.js` 裡的 `CACHE_VERSION` 加 1（例如 `'v1'` → `'v2'`），重新部署。
+每個收藏都有一個 `id`（見 `js/config.js` 的 `rewards`），把照片用這個 id 命名放進本資料夾就會自動使用：
 
-沒有設定照片的貓咪會自動使用 CSS + Emoji 佔位圖；「貓咪影子」模式則是自動把圖案變成黑色剪影。
+| 章節 | 檔名 |
+| --- | --- |
+| 第一章・指西 | `west-1.jpg` ~ `west-4.jpg` |
+| 第二章・指北 | `north-1.jpg` ~ `north-4.jpg` |
+| 終章・指南 | `south-1.jpg` ~ `south-4.jpg` |
+
+- 支援 `.jpg` 或 `.png`（先找 `.jpg`）。
+- 建議正方形、寬度 600px 左右、單張 200KB 以內，離線快取比較快。
+- 想用其他檔名，可以在 `config.js` 該收藏的 `photo` 欄位填路徑，例如 `photo: 'assets/cats/mochi.jpg'`。
+- 沒放照片時會顯示 Emoji 佔位圖與「寫真預留」標籤。
+- 放好後請把 `sw.js` 的 `CACHE_VERSION` 加 1（例如 `v2` → `v3`），離線快取才會更新。

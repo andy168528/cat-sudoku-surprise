@@ -3,7 +3,7 @@
  * 策略：stale-while-revalidate（先回快取，背景連網時再更新）。
  * 更新檔案（特別是新增照片 / 音檔）後，請把 CACHE_VERSION 加 1。
  */
-var CACHE_VERSION = 'v1';
+var CACHE_VERSION = 'v2';
 var CACHE_NAME = 'cat-sudoku-' + CACHE_VERSION;
 
 try { importScripts('js/config.js'); } catch (e) { /* config 讀取失敗時仍可運作 */ }
@@ -25,11 +25,11 @@ var CORE_ASSETS = [
 
 function mediaAssets() {
   var cfg = self.CAT_SUDOKU_CONFIG;
-  if (!cfg || !cfg.cats) return [];
+  if (!cfg || !cfg.rewards || !cfg.mediaFor) return [];
   var out = [];
-  cfg.cats.forEach(function (c) {
-    if (c.photo) out.push('./' + c.photo.replace(/^\.?\//, ''));
-    if (c.sound) out.push('./' + c.sound.replace(/^\.?\//, ''));
+  cfg.rewards.forEach(function (r) {
+    var m = cfg.mediaFor(r);
+    m.photos.concat(m.sounds).forEach(function (u) { out.push('./' + u.replace(/^\.?\//, '')); });
   });
   return out;
 }
