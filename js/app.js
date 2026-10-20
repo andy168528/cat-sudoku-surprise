@@ -519,12 +519,16 @@
   }
 
   function stagePuzzle(ch, s) {
-    var pre = STAGES[stageId(ch, s)];
-    if (pre) {
+    var pool = [].concat(STAGES[stageId(ch, s)] || []);
+    if (pool.length) {
+      var last = game && game.id === stageId(ch, s) ? game.variant : -1;
+      var v = Math.floor(Math.random() * pool.length);
+      if (pool.length > 1 && v === last) v = (v + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
+      var pre = pool[v];
       var toArr = function (str) { return str.split('').map(Number); };
       var t = { puzzle: toArr(pre.p), solution: toArr(pre.s) };
       if (typeof S.transform === 'function') t = S.transform(t.puzzle, t.solution);
-      return { puzzle: t.puzzle, solution: t.solution, holes: pre.h, grade: pre.g };
+      return { puzzle: t.puzzle, solution: t.solution, holes: pre.h, grade: pre.g, variant: v };
     }
     var r = S.generate(C(ch).level, { seed: Math.floor(Math.random() * 1e9) });
     return { puzzle: r.puzzle, solution: r.solution, holes: r.holes, grade: r.grade.level };
@@ -547,7 +551,7 @@
         ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
         values: p.puzzle.slice(), notes: new Array(81).fill(0),
         mistakes: 0, hints: 0, hinted: [], elapsedMs: 0, timeLimitMs: limitMs(ch, s),
-        completed: false, failed: false, started: false, history: [], grade: p.grade, holes: p.holes, createdAt: Date.now()
+        completed: false, failed: false, started: false, history: [], grade: p.grade, holes: p.holes, variant: p.variant, createdAt: Date.now()
       };
       store.current = ch;
       selected = -1;

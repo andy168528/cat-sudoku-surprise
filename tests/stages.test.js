@@ -30,23 +30,31 @@ CONFIG.rewards.forEach(r => {
 assert.ok(CONFIG.ultimateReward && CONFIG.ultimateReward.title);
 
 const toArr = s => s.split('').map(Number);
+const POOL = 5;
+const all = [];
+const solSeen = new Set();
 CONFIG.rewards.forEach(r => {
-  const st = STAGES[r.id];
-  assert.ok(st, 'missing stage ' + r.id);
+  const pool = A(STAGES[r.id] || []);
+  assert.ok(pool.length >= POOL, r.id + ' 題庫至少 ' + POOL + ' 題，目前 ' + pool.length);
+  pool.forEach((st, k) => all.push(Object.assign({ id: r.id + '#' + k, r: r }, st)));
+});
+all.forEach(st => {
+  const r = st.r;
+  assert.ok(!solSeen.has(st.s), st.id + ' 與其他題重複'); solSeen.add(st.s);
   const p = toArr(st.p), sol = toArr(st.s);
   const lv = S.LEVELS[chs[r.ch - 1].level];
-  assert.strictEqual(S.countSolutions(p, 2), 1, r.id + ' unique');
-  assert.deepStrictEqual(S.solve(p), sol, r.id + ' solution');
+  assert.strictEqual(S.countSolutions(p, 2), 1, st.id + ' unique');
+  assert.deepStrictEqual(S.solve(p), sol, st.id + ' solution');
   p.forEach((v, i) => { if (v) assert.strictEqual(v, sol[i]); });
   const holes = p.filter(v => v === 0).length;
   assert.strictEqual(holes, st.h);
-  assert.ok(holes >= lv.minHoles && holes <= lv.maxHoles, r.id + ' holes ' + holes);
-  assert.ok(S.grade(p).level >= lv.minTech, r.id + ' grade');
+  assert.ok(holes >= lv.minHoles && holes <= lv.maxHoles, st.id + ' holes ' + holes);
+  assert.ok(S.grade(p).level >= lv.minTech, st.id + ' grade');
 });
 
 // 重來時的等價變換：盤面不同，但唯一解、挖空數、難度都不變
-Object.keys(STAGES).forEach((id, n) => {
-  const st = STAGES[id];
+all.forEach((st, n) => {
+  const id = st.id;
   const p = st.p.split('').map(Number), sol = st.s.split('').map(Number);
   const rnd = S.mulberry32(1234 + n);
   const t = S.transform(p, sol, rnd);
@@ -55,6 +63,6 @@ Object.keys(STAGES).forEach((id, n) => {
   for (let i = 0; i < 81; i++) if (t.puzzle[i]) assert.strictEqual(t.puzzle[i], t.solution[i]);
   assert.strictEqual(S.countSolutions(t.puzzle.slice(), 2), 1, id + ' 變換後仍唯一解');
   assert.deepStrictEqual(S.solve(t.puzzle.slice()), t.solution, id + ' 解答對應');
-  if (n % 6 === 0) assert.strictEqual(S.grade(t.puzzle).level, st.g, id + ' 難度不變');
+  if (n % 20 === 0) assert.strictEqual(S.grade(t.puzzle).level, st.g, id + ' 難度不變');
 });
-console.log('All stage/config tests passed ✅（48 關皆為唯一解）');
+console.log('All stage/config tests passed ✅（48 關 × 題庫共 ' + all.length + ' 題，皆為唯一解）');
