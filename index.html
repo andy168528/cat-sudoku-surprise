@@ -24,7 +24,7 @@
         <p id="poweredBy">Powered by 鴻小兵</p>
       </div>
       <div class="stats">
-        <span class="stat"><small>時間</small><b id="timer">00:00</b></span>
+        <span class="stat"><small id="timerLabel">時間</small><b id="timer">00:00</b></span>
         <span class="stat"><small>失誤</small><b id="mistakes">0</b></span>
         <button id="pauseBtn" class="icon-btn" aria-label="暫停"></button>
       </div>
@@ -34,6 +34,8 @@
       <!-- 數讀 -->
       <section id="view-game" class="view active" aria-label="遊戲">
         <div id="levelTabs" class="level-tabs" role="tablist"></div>
+        <div id="stageStrip" class="stage-strip"></div>
+        <p id="stageMeta" class="stage-meta"></p>
         <div class="game-info">
           <span id="levelLabel">—</span>
           <span id="gradeLabel"></span>
@@ -46,9 +48,14 @@
             <p>休息一下，貓咪陪妳。</p>
             <button id="resumeBtn" class="btn primary">繼續閱讀</button>
           </div>
+          <div id="failOverlay" class="overlay hidden">
+            <p class="overlay-title">時間到</p>
+            <p id="failText"></p>
+            <button id="retryBtn" class="btn primary">重新挑戰</button>
+          </div>
           <div id="loading" class="overlay hidden">
             <p class="overlay-title">翻頁中…</p>
-            <p>貓咪正在出題</p>
+            <p>貓咪正在準備這一關</p>
           </div>
         </div>
         <div class="cheer">
@@ -59,8 +66,8 @@
           <button id="undoBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><small>復原</small></button>
           <button id="eraseBtn" class="tool"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg><small>清除</small></button>
           <button id="notesBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><small>筆記 <i id="notesState">關</i></small></button>
-          <button id="hintBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><small>提示</small></button>
-          <button id="newBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg><small>新局</small></button>
+          <button id="hintBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><small>提示 <i id="hintCount"></i></small></button>
+          <button id="newBtn" class="tool"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg><small>重來</small></button>
         </div>
         <div id="numpad" class="numpad"></div>
       </section>
@@ -91,7 +98,7 @@
           <button id="resetBtn" class="btn danger">重置所有進度</button>
         </div>
         <p id="offlineStatus" class="offline-status">檢查離線狀態中…</p>
-        <p class="version"><span id="versionName">喵南西北數讀</span> · v1.1.0 · <span id="versionPowered">Powered by 鴻小兵</span></p>
+        <p class="version"><span id="versionName">喵南西北數讀</span> · v1.2.0 · <span id="versionPowered">Powered by 鴻小兵</span></p>
       </section>
     </main>
 
@@ -111,6 +118,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/sudoku.js"></script>
+  <script src="js/stages.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/app.js"></script>
 </body>

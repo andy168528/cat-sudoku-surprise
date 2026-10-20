@@ -3,7 +3,7 @@
  * 策略：stale-while-revalidate（先回快取，背景連網時再更新）。
  * 更新檔案（特別是新增照片 / 音檔）後，請把 CACHE_VERSION 加 1。
  */
-var CACHE_VERSION = 'v2';
+var CACHE_VERSION = 'v3';
 var CACHE_NAME = 'cat-sudoku-' + CACHE_VERSION;
 
 try { importScripts('js/config.js'); } catch (e) { /* config 讀取失敗時仍可運作 */ }
@@ -15,6 +15,7 @@ var CORE_ASSETS = [
   './css/style.css',
   './js/config.js',
   './js/sudoku.js',
+  './js/stages.js',
   './js/audio.js',
   './js/app.js',
   './icons/icon-192.png',
@@ -31,6 +32,8 @@ function mediaAssets() {
     var m = cfg.mediaFor(r);
     m.photos.concat(m.sounds).forEach(function (u) { out.push('./' + u.replace(/^\.?\//, '')); });
   });
+  var u = cfg.ultimateReward || {};
+  [u.photo, u.sound].forEach(function (x) { if (x) out.push('./' + x.replace(/^\.?\//, '')); });
   return out;
 }
 

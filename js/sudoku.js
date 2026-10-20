@@ -374,7 +374,8 @@
   var LEVELS = {
     1: { name: '入門高難', minHoles: 50, maxHoles: 52, minTech: 1 },
     2: { name: '專家挑戰', minHoles: 54, maxHoles: 56, minTech: 2 },
-    3: { name: '地獄考驗', minHoles: 58, maxHoles: 64, minTech: 3 }
+    3: { name: '地獄考驗', minHoles: 58, maxHoles: 64, minTech: 3 },
+    4: { name: '超地獄考驗', minHoles: 60, maxHoles: 64, minTech: 5 }
   };
 
   function dig(solution, target, rnd) {

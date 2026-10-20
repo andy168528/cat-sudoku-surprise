@@ -28,6 +28,17 @@ for (const level of [1, 2, 3]) {
   console.log(`Level ${level} OK — avg ${(times.reduce((a, b) => a + b, 0) / times.length).toFixed(1)}ms, max ${Math.max(...times)}ms`);
 }
 
+// 終章・超地獄考驗：生成較慢，抽樣 2 題
+{
+  const cfg = S.LEVELS[4];
+  for (const seed of [4001, 4009]) {
+    const r = S.generate(4, { seed, timeLimit: 20000 });
+    assert.strictEqual(S.countSolutions(r.puzzle, 2), 1);
+    assert.ok(r.holes >= cfg.minHoles && r.holes <= cfg.maxHoles, `L4 holes ${r.holes}`);
+  }
+  console.log('Level 4 OK');
+}
+
 // 同一個 seed 需產生相同題目
 assert.deepStrictEqual(S.generate(2, { seed: 7 }).puzzle, S.generate(2, { seed: 7 }).puzzle);
 

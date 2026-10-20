@@ -4,8 +4,9 @@
   var S = window.CatSudoku;
   var Sound = window.CatSound;
   var CONFIG = window.CAT_SUDOKU_CONFIG;
+  var STAGES = window.CAT_SUDOKU_STAGES || {};
   var REWARDS = CONFIG.rewards;
-  var CH = CONFIG.chapters;
+  var CHS = CONFIG.chapters;
   var ICONS = {
     lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     sound: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>',
@@ -13,13 +14,13 @@
     pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>'
   };
-  function chName(L) { return CH[L].label + '・' + CH[L].name; }
 
-  var KEY_GAMES = 'catSudoku.games.v1';
-  var KEY_PROGRESS = 'catSudoku.progress.v1';
+  var KEY_GAMES = 'catSudoku.games.v2';
+  var KEY_PROGRESS = 'catSudoku.progress.v2';
   var KEY_SETTINGS = 'catSudoku.settings.v1';
   var MAX_HISTORY = 100;
   var GRADE_TEXT = { 1: '基本技巧', 2: '區塊摒除', 3: '數對 / 數組', 4: 'X-Wing 級', 5: '超進階推理' };
+  var NUM_TEXT = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
 
   function $(id) { return document.getElementById(id); }
   function load(key, fallback) {
@@ -41,13 +42,22 @@
     return h ? h + ':' + mm + ':' + ss : mm + ':' + ss;
   }
   function personalize(t) { return t.replace(/\{name\}/g, CONFIG.herName); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* ---------------- 章節 / 關卡 ---------------- */
+
+  function C(ch) { return CHS[ch - 1]; }
+  function chName(ch) { return C(ch).label + '・' + C(ch).name; }
+  function stageId(ch, s) { return C(ch).key + '-' + pad2(s); }
+  function stageText(s) { return '第' + (NUM_TEXT[s] || s) + '關'; }
+  function limitMs(ch, s) { var m = (C(ch).timeLimits || {})[s]; return m ? m * 60000 : 0; }
 
   /* ---------------- 狀態 ---------------- */
 
+  function freshProgress() { return { cleared: {}, best: {}, seen: [], wins: 0, fails: 0, ultimate: false }; }
   var settings = Object.assign({ sound: true, errorCheck: true, highlight: true, autoNotes: true, galleryPhoto: true },
     load(KEY_SETTINGS, {}));
-  var progress = Object.assign({ totalWins: 0, wins: { 1: 0, 2: 0, 3: 0 }, best: {}, unlocked: [], seen: [] },
-    load(KEY_PROGRESS, {}));
+  var progress = Object.assign(freshProgress(), load(KEY_PROGRESS, {}));
   var store = Object.assign({ current: 1, games: {} }, load(KEY_GAMES, {}));
   var game = store.games[store.current] || null;
 
@@ -65,11 +75,27 @@
   Sound.setEnabled(settings.sound);
 
   function persistGame() {
-    if (game) store.games[game.level] = game;
+    if (game) store.games[game.ch] = game;
     save(KEY_GAMES, store);
   }
   function persistProgress() { save(KEY_PROGRESS, progress); }
   function persistSettings() { save(KEY_SETTINGS, settings); }
+
+  function clearedList(ch) { return progress.cleared[ch] || (progress.cleared[ch] = []); }
+  function isStageCleared(ch, s) { return clearedList(ch).indexOf(s) >= 0; }
+  function isChapterDone(ch) {
+    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s)) return false;
+    return true;
+  }
+  function isChapterUnlocked(ch) { return ch === 1 || isChapterDone(ch - 1); }
+  function isStageUnlocked(ch, s) { return isChapterUnlocked(ch) && (s === 1 || isStageCleared(ch, s - 1)); }
+  function nextStage(ch) {
+    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s)) return s;
+    return C(ch).stages;
+  }
+  function allDone() { return CHS.every(function (c, i) { return isChapterDone(i + 1); }); }
+  function hintsAllowed(g) { return C(g.ch).hints || 0; }
+  function isFrozen() { return !game || game.completed || game.failed || paused; }
 
   /* ---------------- 盤面 ---------------- */
 
@@ -171,44 +197,81 @@
       btn.classList.toggle('done', left <= 0);
       btn.lastChild.textContent = left > 0 ? left : '✓';
     }
-    var cfg = S.LEVELS[game.level];
-    $('levelLabel').textContent = chName(game.level) + '・' + cfg.name + '・挖空 ' + game.holes + ' 格';
-    $('gradeLabel').textContent = '推理：' + (GRADE_TEXT[game.grade] || '—');
+    $('levelLabel').textContent = chName(game.ch) + '・' + stageText(game.stage) + ' / ' + C(game.ch).stages;
+    $('gradeLabel').textContent = '挖空 ' + game.holes + '・' + (GRADE_TEXT[game.grade] || '—');
     $('filledLabel').textContent = filled + ' / 81';
     $('mistakes').textContent = game.mistakes;
-    $('timer').textContent = fmtTime(game.elapsedMs);
+    renderTimer();
+    var allow = hintsAllowed(game);
+    var hb = $('hintBtn');
+    hb.classList.toggle('disabled', allow === 0 || game.hints >= allow);
+    $('hintCount').textContent = allow === 0 ? '禁用' : (allow - game.hints) + '/' + allow;
     $('notesBtn').classList.toggle('active', noteMode);
     $('notesState').textContent = noteMode ? '開' : '關';
-    $('pauseOverlay').classList.toggle('hidden', !paused);
-    $('board').classList.toggle('blur', paused);
+    $('pauseOverlay').classList.toggle('hidden', !paused || !!game.failed);
+    $('failOverlay').classList.toggle('hidden', !game.failed);
+    if (game.failed) $('failText').textContent = '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成，再挑戰一次吧！';
+    $('board').classList.toggle('blur', paused || !!game.failed);
     $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
   }
 
-  function isLevelUnlocked(L) {
-    return L === 1 || (progress.wins[L - 1] || 0) >= 1;
+  function renderTimer() {
+    if (!game) return;
+    var timed = game.timeLimitMs > 0;
+    var stat = $('timer').parentNode;
+    $('timerLabel').textContent = timed ? '剩餘時間' : '時間';
+    if (timed) {
+      var remain = Math.max(0, game.timeLimitMs - game.elapsedMs);
+      $('timer').textContent = fmtTime(remain);
+      stat.classList.toggle('urgent', !game.completed && remain <= 60000);
+    } else {
+      $('timer').textContent = fmtTime(game.elapsedMs);
+      stat.classList.remove('urgent');
+    }
+    stat.classList.toggle('timed', timed);
   }
 
   function buildLevelTabs() {
-    $('levelTabs').innerHTML = [1, 2, 3].map(function (L) {
-      return '<button class="level-tab" data-level="' + L + '" role="tab"><small>' + esc(CH[L].label) + '</small>' +
-        '<b>' + esc(CH[L].name) + '</b><small>' + esc(CH[L].desc) + '</small><span class="lock">' + ICONS.lock + '</span></button>';
+    $('levelTabs').innerHTML = CHS.map(function (c, idx) {
+      return '<button class="level-tab" data-ch="' + (idx + 1) + '" role="tab"><small>' + esc(c.label) + '</small>' +
+        '<b>' + esc(c.name) + '</b><small>' + esc(c.desc) + '</small><span class="lock">' + ICONS.lock + '</span></button>';
     }).join('');
   }
 
   function renderTabs() {
     var tabs = document.querySelectorAll('.level-tab');
     for (var t = 0; t < tabs.length; t++) {
-      var L = +tabs[t].dataset.level;
-      var unlocked = isLevelUnlocked(L);
-      tabs[t].classList.toggle('active', L === store.current);
+      var ch = +tabs[t].dataset.ch;
+      var unlocked = isChapterUnlocked(ch);
+      tabs[t].classList.toggle('active', ch === store.current);
       tabs[t].classList.toggle('locked', !unlocked);
+      tabs[t].classList.toggle('done', isChapterDone(ch));
       tabs[t].querySelector('.lock').classList.toggle('hidden', unlocked);
-      var g = store.games[L];
-      tabs[t].classList.toggle('in-progress', !!(g && !g.completed));
     }
-    var hasNew = progress.unlocked.some(function (id) { return progress.seen.indexOf(id) < 0; });
+    renderStages();
+    var hasNew = REWARDS.some(function (r) { return isUnlocked(r) && progress.seen.indexOf(r.id) < 0; });
     $('galleryBadge').classList.toggle('hidden', !hasNew);
     renderCheer();
+  }
+
+  function renderStages() {
+    var ch = store.current, c = C(ch);
+    var html = '';
+    for (var s = 1; s <= c.stages; s++) {
+      var cls = 'stage';
+      if (isStageCleared(ch, s)) cls += ' cleared';
+      if (!isStageUnlocked(ch, s)) cls += ' locked';
+      if (game && game.ch === ch && game.stage === s) cls += ' current';
+      if (limitMs(ch, s)) cls += ' timed';
+      html += '<button class="' + cls + '" data-stage="' + s + '" aria-label="' + stageText(s) + '">' + s + '</button>';
+    }
+    var el = $('stageStrip');
+    el.style.setProperty('--n', c.stages);
+    el.classList.toggle('few', c.stages <= 5);
+    if (el.innerHTML !== html) el.innerHTML = html;
+    var got = clearedList(ch).length;
+    $('stageMeta').textContent = '已過 ' + got + ' / ' + c.stages + ' 關・每關提示 ' + (c.hints ? c.hints + ' 次' : '不能用') +
+      (Object.keys(c.timeLimits || {}).length ? '・「限」為限時關' : '');
   }
 
   function flash(i, cls) {
@@ -222,7 +285,7 @@
   /* ---------------- 互動 ---------------- */
 
   function selectCell(i) {
-    if (!game || paused) return;
+    if (!game || paused || game.failed) return;
     selected = i;
     render();
   }
@@ -233,11 +296,11 @@
   }
 
   function canEdit() {
-    return game && !game.completed && !paused && selected >= 0 && game.puzzle[selected] === 0;
+    return !isFrozen() && selected >= 0 && game.puzzle[selected] === 0;
   }
 
   function input(d) {
-    if (!game || game.completed || paused) return;
+    if (isFrozen()) return;
     if (selected < 0) { toast('先點一個格子喔'); return; }
     if (!canEdit()) { Sound.click(); return; }
     var i = selected;
@@ -289,7 +352,7 @@
   }
 
   function undo() {
-    if (!game || game.completed || paused) return;
+    if (isFrozen()) return;
     var h = game.history.pop();
     if (!h) { toast('沒有可以復原的步驟'); return; }
     game.values = h.v;
@@ -306,14 +369,17 @@
   }
 
   function hint() {
-    if (!game || game.completed || paused) return;
+    if (isFrozen()) return;
+    var allow = hintsAllowed(game);
+    if (allow === 0) { Sound.error(); toast(C(game.ch).name + '章不能使用提示，全靠實力！'); return; }
+    if (game.hints >= allow) { Sound.error(); toast('本關提示已用完（每關 ' + allow + ' 次）'); return; }
     for (var i = 0; i < 81; i++) {
       if (game.values[i] && game.values[i] !== game.solution[i]) {
         selected = i;
         render();
         flash(i, 'shake');
         Sound.error();
-        toast('這一格好像不太對喔');
+        toast('這一格好像不太對喔（不扣提示次數）');
         return;
       }
     }
@@ -327,7 +393,8 @@
     game.hints++;
     game.hinted.push(h.index);
     Sound.meow(null, 1.3);
-    toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value);
+    toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value +
+      '・剩 ' + (allow - game.hints) + ' 次');
     persistGame();
     render();
     flash(h.index, 'pop');
@@ -340,57 +407,88 @@
     selectCell(r * 9 + c);
   }
 
-  /* ---------------- 計時器 ---------------- */
+  /* ---------------- 計時器 / 時限 ---------------- */
 
   function startTimer() {
     stopTimer();
-    if (!game || game.completed || paused || currentView !== 'game' || document.hidden) return;
+    if (isFrozen() || currentView !== 'game' || document.hidden) return;
     lastTick = Date.now();
     timerId = setInterval(tick, 1000);
   }
   function stopTimer() {
     if (timerId) {
-      tick();
-      clearInterval(timerId);
+      var id = timerId;
       timerId = null;
+      clearInterval(id);
+      tick();
     }
   }
   function tick() {
-    if (!game) return;
+    if (!game || game.completed || game.failed) return;
     var now = Date.now();
     game.elapsedMs += now - lastTick;
     lastTick = now;
-    $('timer').textContent = fmtTime(game.elapsedMs);
+    renderTimer();
+    if (game.timeLimitMs && game.elapsedMs >= game.timeLimitMs) { timeUp(); return; }
     if (++tickCount % 5 === 0) persistGame();
   }
+  function timeUp() {
+    stopTimer();
+    game.elapsedMs = game.timeLimitMs;
+    game.failed = true;
+    selected = -1;
+    progress.fails = (progress.fails || 0) + 1;
+    persistProgress();
+    persistGame();
+    render();
+    Sound.error();
+    openModal('<p class="modal-kicker">' + esc(chName(game.ch)) + '・' + stageText(game.stage) + '</p>' +
+      '<h2 class="modal-title">時間到</h2><div class="ornament">— ✦ —</div>' +
+      '<p class="story">這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。<br>同一題再挑戰一次，這次一定可以！</p>' +
+      '<div class="modal-actions"><button class="btn ghost" data-act="close">稍後</button>' +
+      '<button class="btn primary" data-act="retry">重新挑戰</button></div>', function (act) {
+      closeModal();
+      if (act === 'retry') restartStage();
+    });
+  }
   function setPaused(v) {
-    if (!game || game.completed) v = false;
+    if (!game || game.completed || game.failed) v = false;
     paused = v;
     if (paused) stopTimer(); else startTimer();
     persistGame();
     render();
   }
 
-  /* ---------------- 新局 / 切換難度 ---------------- */
+  /* ---------------- 載入關卡 ---------------- */
 
   function hasProgress(g) {
-    if (!g || g.completed) return false;
+    if (!g || g.completed || g.failed) return false;
     for (var i = 0; i < 81; i++) if ((g.values[i] && !g.puzzle[i]) || g.notes[i]) return true;
     return false;
   }
 
-  function newGame(level) {
+  function stagePuzzle(ch, s) {
+    var pre = STAGES[stageId(ch, s)];
+    if (pre) {
+      var toArr = function (str) { return str.split('').map(Number); };
+      return { puzzle: toArr(pre.p), solution: toArr(pre.s), holes: pre.h, grade: pre.g };
+    }
+    var r = S.generate(C(ch).level, { seed: ch * 100000 + s * 1000 });
+    return { puzzle: r.puzzle, solution: r.solution, holes: r.holes, grade: r.grade.level };
+  }
+
+  function loadStage(ch, s) {
     stopTimer();
     $('loading').classList.remove('hidden');
     setTimeout(function () {
-      var r = S.generate(level);
+      var p = stagePuzzle(ch, s);
       game = {
-        level: level, seed: r.seed, puzzle: r.puzzle, solution: r.solution,
-        values: r.puzzle.slice(), notes: new Array(81).fill(0),
-        mistakes: 0, hints: 0, hinted: [], elapsedMs: 0, completed: false,
-        history: [], grade: r.grade.level, holes: r.holes, createdAt: Date.now()
+        ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
+        values: p.puzzle.slice(), notes: new Array(81).fill(0),
+        mistakes: 0, hints: 0, hinted: [], elapsedMs: 0, timeLimitMs: limitMs(ch, s),
+        completed: false, failed: false, history: [], grade: p.grade, holes: p.holes, createdAt: Date.now()
       };
-      store.current = level;
+      store.current = ch;
       selected = -1;
       noteMode = false;
       paused = false;
@@ -398,147 +496,177 @@
       $('loading').classList.add('hidden');
       render();
       startTimer();
+      if (game.timeLimitMs) toast('限時關：' + fmtTime(game.timeLimitMs) + ' 內完成才算過關');
     }, 60);
   }
 
-  function switchLevel(level) {
+  function restartStage() { if (game) loadStage(game.ch, game.stage); }
+
+  function switchChapter(ch) {
     Sound.click();
-    if (!isLevelUnlocked(level)) {
-      toast('先通過「' + CH[level - 1].name + '」才能翻開「' + CH[level].name + '」');
+    if (!isChapterUnlocked(ch)) {
+      toast('先完成「' + C(ch - 1).name + '」全部 ' + C(ch - 1).stages + ' 關，才能翻開「' + C(ch).name + '」');
       return;
     }
-    if (level === store.current && game) {
-      if (game.completed) { newGame(level); return; }
-      return;
-    }
+    if (ch === store.current && game) return;
     stopTimer();
     persistGame();
-    store.current = level;
-    var g = store.games[level];
-    if (g && !g.completed) {
+    store.current = ch;
+    var g = store.games[ch];
+    if (g && g.id && !g.completed) {
       game = g;
       selected = -1;
       paused = false;
       persistGame();
       render();
       startTimer();
-      toast('已翻到「' + CH[level].name + '」的書籤');
+      toast('已翻到「' + C(ch).name + '」' + stageText(g.stage) + '的書籤');
     } else {
-      newGame(level);
+      loadStage(ch, nextStage(ch));
     }
   }
 
-  function requestNewGame() {
+  function switchStage(s) {
+    var ch = store.current;
+    Sound.click();
+    if (!isStageUnlocked(ch, s)) { toast('先通過' + stageText(s - 1) + '，才能挑戰' + stageText(s)); return; }
+    if (game && game.ch === ch && game.stage === s && !game.completed) return;
     if (hasProgress(game)) {
-      confirmModal('開新的一局？', '目前這局的進度將會消失喔！', '開新局', function () { newGame(store.current); });
+      confirmModal('前往' + stageText(s) + '？', '目前' + stageText(game.stage) + '的進度將會消失喔！', '前往', function () { loadStage(ch, s); });
     } else {
-      newGame(store.current);
+      loadStage(ch, s);
+    }
+  }
+
+  function requestRestart() {
+    if (!game) return;
+    if (hasProgress(game)) {
+      confirmModal('重來這一關？', '盤面、時間與提示次數都會重新開始。', '重來', restartStage);
+    } else {
+      restartStage();
     }
   }
 
   /* ---------------- 過關 & 獎勵 ---------------- */
 
-  function meets(r) { return (progress.wins[r.level] || 0) >= r.wins; }
-  function unlockText(r) { return '通過「' + CH[r.level].name + '」' + r.wins + ' 次'; }
   function rewardById(id) { return REWARDS.filter(function (r) { return r.id === id; })[0]; }
-  function isUnlocked(r) { return progress.unlocked.indexOf(r.id) >= 0; }
+  function isUnlocked(r) { return isStageCleared(r.ch, r.stage); }
+  function rewardName(r) { return C(r.ch).cat.name + '・' + pad2(r.stage); }
   function playReward(r) { Sound.meow(CONFIG.mediaFor(r).sounds, r.pitch); }
 
   function checkWin() {
-    if (!game || game.completed) return;
+    if (!game || game.completed || game.failed) return;
     for (var i = 0; i < 81; i++) if (game.values[i] !== game.solution[i]) return;
     stopTimer();
+    if (game.timeLimitMs && game.elapsedMs >= game.timeLimitMs) { if (!game.failed) timeUp(); return; }
+    if (game.failed) return;
     game.completed = true;
     selected = -1;
-    var L = game.level;
-    var wasNextLocked = L < 3 && !isLevelUnlocked(L + 1);
-    progress.totalWins++;
-    progress.wins[L] = (progress.wins[L] || 0) + 1;
-    var prevBest = progress.best[L];
+    var ch = game.ch, s = game.stage;
+    var firstClear = !isStageCleared(ch, s);
+    if (firstClear) clearedList(ch).push(s);
+    progress.wins = (progress.wins || 0) + 1;
+    var prevBest = progress.best[game.id];
     var isBest = !prevBest || game.elapsedMs < prevBest;
-    if (isBest) progress.best[L] = game.elapsedMs;
-    var newly = REWARDS.filter(function (r) { return !isUnlocked(r) && meets(r); });
-    newly.forEach(function (r) { progress.unlocked.push(r.id); });
+    if (isBest) progress.best[game.id] = game.elapsedMs;
+    var reward = firstClear ? rewardById(game.id) : null;
+    var chapterDone = firstClear && isChapterDone(ch);
+    var nextCh = chapterDone && ch < CHS.length ? ch + 1 : 0;
+    var ultimate = chapterDone && allDone();
+    if (ultimate) progress.ultimate = true;
     persistProgress();
     persistGame();
     render();
-    var nextChapter = wasNextLocked && isLevelUnlocked(L + 1) ? L + 1 : 0;
-    setTimeout(function () { celebrate(newly, isBest, nextChapter); }, 350);
+    setTimeout(function () { celebrate(reward, isBest, chapterDone, nextCh, ultimate); }, 350);
   }
 
-  function celebrate(newly, isBest, nextChapter) {
+  function celebrate(reward, isBest, chapterDone, nextCh, ultimate) {
     Sound.win();
-    if (newly[0]) setTimeout(function () { playReward(newly[0]); }, 900);
+    if (reward) setTimeout(function () { playReward(reward); }, 900);
     confetti();
-    var L = game.level;
+    var g = game, c = C(g.ch);
     var msgs = CONFIG.sweetMessages;
     var sweet = personalize(msgs[Math.floor(Math.random() * msgs.length)]);
-    var html = '<p class="modal-kicker">' + esc(CH[L].label) + '</p>' +
-      '<h2 class="modal-title">' + esc(CH[L].name) + '・完</h2>' +
+    var allow = hintsAllowed(g);
+    var html = '<p class="modal-kicker">' + esc(chName(g.ch)) + '</p>' +
+      '<h2 class="modal-title">' + (chapterDone ? esc(c.name) + '・完' : stageText(g.stage) + '・過關') + '</h2>' +
       '<div class="ornament">— ✦ —</div>' +
-      '<p class="level-msg">' + esc(CONFIG.levelMessages[L] || '') + '</p>' +
       '<p class="sweet">' + esc(sweet) + '<small>— 愛妳的' + esc(CONFIG.fromName) + '</small></p>' +
-      '<div class="result-stats"><span>時間 <b>' + fmtTime(game.elapsedMs) + '</b>' + (isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
-      '<span>失誤 <b>' + game.mistakes + '</b></span><span>提示 <b>' + game.hints + '</b></span></div>';
-    if (newly.length) {
-      html += '<h3 class="unlock-title">解鎖新收藏</h3><div class="unlock-list">' +
-        newly.map(function (r) {
-          return '<div class="unlock-item">' + catArt(r, 'photo') + '<b>' + esc(r.name) + '</b><small>寫真＋叫聲</small></div>';
-        }).join('') + '</div>';
+      '<div class="result-stats"><span>時間 <b>' + fmtTime(g.elapsedMs) + '</b>' + (isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
+      (g.timeLimitMs ? '<span>時限 <b>' + fmtTime(g.timeLimitMs) + '</b> 內完成</span>' : '') +
+      '<span>失誤 <b>' + g.mistakes + '</b></span>' +
+      '<span>提示 <b>' + (allow ? g.hints + '/' + allow : '—') + '</b></span></div>';
+    if (reward) {
+      var n = clearedList(g.ch).length;
+      html += '<h3 class="unlock-title">獲得 ' + esc(c.cat.name) + ' 的寫真＋叫聲</h3><div class="unlock-list">' +
+        '<div class="unlock-item">' + catArt(reward, 'photo') + '<b>' + esc(rewardName(reward)) + '</b>' +
+        '<small>「' + esc(c.name) + '」打氣叫聲 ' + n + ' 種</small></div></div>';
     } else {
-      var next = REWARDS.filter(function (r) { return r.level === L && !isUnlocked(r); })[0];
-      html += next
-        ? '<p class="next-goal">本章下一個收藏：' + unlockText(next) + '</p>'
-        : '<p class="next-goal">「' + esc(CH[L].name) + '」的收藏已全部到手</p>';
+      html += '<p class="next-goal">這一關的寫真與叫聲已經收藏過了</p>';
     }
-    if (nextChapter) {
-      html += '<div class="chapter-unlocked">已解鎖 ' + esc(chName(nextChapter)) + '</div>';
-    }
-    html += '<div class="modal-actions">' +
-      '<button class="btn ghost" data-act="gallery">收藏</button>' +
-      (nextChapter ? '<button class="btn ghost" data-act="next">前往下一章</button>' : '') +
-      '<button class="btn primary" data-act="again">再讀一局</button></div>';
+    if (nextCh) html += '<div class="chapter-unlocked">已解鎖 ' + esc(chName(nextCh)) + '</div>';
+    if (ultimate) html += '<div class="chapter-unlocked">喵南西北全部制霸！終極獎勵已開啟</div>';
+    var primary;
+    if (ultimate) primary = '<button class="btn primary" data-act="ultimate">打開終極獎勵</button>';
+    else if (nextCh) primary = '<button class="btn primary" data-act="nextch">前往' + esc(C(nextCh).label) + '</button>';
+    else if (g.stage < c.stages) primary = '<button class="btn primary" data-act="next">下一關</button>';
+    else primary = '<button class="btn primary" data-act="again">再玩一次</button>';
+    html += '<div class="modal-actions"><button class="btn ghost" data-act="gallery">收藏</button>' + primary + '</div>';
     openModal(html, function (act) {
-      if (act === 'gallery') { closeModal(); showView('gallery'); }
-      if (act === 'next') { closeModal(); switchLevel(nextChapter); }
-      if (act === 'again') { closeModal(); newGame(game.level); }
+      closeModal();
+      if (act === 'gallery') showView('gallery');
+      if (act === 'ultimate') openUltimate();
+      if (act === 'nextch') switchChapter(nextCh);
+      if (act === 'next') loadStage(g.ch, g.stage + 1);
+      if (act === 'again') loadStage(g.ch, g.stage);
     });
+  }
+
+  function openUltimate() {
+    var u = CONFIG.ultimateReward || {};
+    var art = '<div class="cat-art photo ultimate-art detail-art"><span class="cat-emoji">🏆</span><span class="cat-tag">終極獎勵預留</span>' +
+      (u.photo ? '<img src="' + esc(u.photo) + '" alt="" onerror="this.remove()">' : '') + '</div>';
+    Sound.win();
+    if (u.sound) setTimeout(function () { Sound.meow([u.sound], 1); }, 700);
+    openModal('<p class="modal-kicker">喵南西北・全卷完</p>' + art +
+      '<h2 class="modal-title">' + esc(u.title || '終極獎勵') + '</h2>' +
+      '<p class="story">' + esc(personalize(u.message || '')) + '</p>' +
+      '<div class="modal-actions"><button class="btn primary" data-act="close">闔上</button></div>', function () { closeModal(); });
   }
 
   /* ---------------- 貓貓打氣 ---------------- */
 
-  var cheerIndex = { 1: 0, 2: 0, 3: 0 };
+  var lastCheer = {};
 
   function buildCheer() {
-    $('cheerBtns').innerHTML = [1, 2, 3].map(function (L) {
-      return '<button class="cheer-btn" data-cheer="' + L + '"><span class="ico"></span>' + esc(CH[L].name) + ' <small></small></button>';
+    $('cheerBtns').innerHTML = CHS.map(function (c, idx) {
+      return '<button class="cheer-btn" data-cheer="' + (idx + 1) + '"><span class="ico"></span>' + esc(c.name) + ' <small></small></button>';
     }).join('');
   }
 
   function renderCheer() {
     var btns = document.querySelectorAll('.cheer-btn');
     for (var k = 0; k < btns.length; k++) {
-      var L = +btns[k].dataset.cheer;
-      var all = REWARDS.filter(function (r) { return r.level === L; });
-      var got = all.filter(isUnlocked).length;
+      var ch = +btns[k].dataset.cheer;
+      var got = clearedList(ch).length;
       btns[k].classList.toggle('locked', got === 0);
       btns[k].querySelector('.ico').innerHTML = got ? ICONS.sound : ICONS.lock;
-      btns[k].querySelector('small').textContent = got + '/' + all.length;
+      btns[k].querySelector('small').textContent = got + '/' + C(ch).stages;
     }
   }
 
-  function cheer(L, btn) {
-    var list = REWARDS.filter(function (r) { return r.level === L && isUnlocked(r); });
+  function cheer(ch, btn) {
+    var list = REWARDS.filter(function (r) { return r.ch === ch && isUnlocked(r); });
     if (!list.length) {
-      var first = REWARDS.filter(function (r) { return r.level === L; })[0];
       Sound.click();
-      toast(first ? unlockText(first) + '，即可解鎖「' + CH[L].name + '」打氣叫聲' : '尚無叫聲');
+      toast('通過「' + C(ch).name + '」' + stageText(1) + '，即可解鎖' + C(ch).cat.name + '的打氣叫聲');
       return;
     }
-    var r = list[cheerIndex[L] % list.length];
-    cheerIndex[L]++;
+    var pool = list.length > 1 ? list.filter(function (r) { return r.id !== lastCheer[ch]; }) : list;
+    var r = pool[Math.floor(Math.random() * pool.length)];
+    lastCheer[ch] = r.id;
     playReward(r);
-    toast(r.name + ' 為妳打氣！');
+    toast(C(ch).cat.name + ' 為妳打氣！（第 ' + r.stage + ' 聲・共 ' + list.length + ' 種）');
     btn.classList.remove('ringing');
     void btn.offsetWidth;
     btn.classList.add('ringing');
@@ -555,15 +683,17 @@
   };
 
   function catArt(r, mode, extraCls) {
+    var cat = C(r.ch).cat;
     var cls = 'cat-art ' + (mode === 'shadow' ? 'shadow' : 'photo') + (extraCls ? ' ' + extraCls : '');
-    var inner = '<span class="cat-emoji">' + r.emoji + '</span>';
+    var inner = '<span class="cat-emoji">' + cat.emoji + '</span>';
     if (mode !== 'shadow') {
       var photos = CONFIG.mediaFor(r).photos;
       inner += '<span class="cat-tag">寫真預留</span>' +
-        '<img src="' + esc(photos[0]) + '" data-srcs="' + esc(JSON.stringify(photos)) + '" alt="' + esc(r.name) + '" onerror="__catImgNext(this)">';
+        '<img src="' + esc(photos[0]) + '" data-srcs="' + esc(JSON.stringify(photos)) + '" alt="' + esc(rewardName(r)) + '" onerror="__catImgNext(this)">';
     }
+    inner += '<span class="cat-no">' + pad2(r.stage) + '</span>';
     if (extraCls === 'locked') inner += '<span class="cat-q">?</span>';
-    return '<div class="' + cls + '" style="--c:' + esc(r.color || '#ddd6c8') + '">' + inner + '</div>';
+    return '<div class="' + cls + '" style="--c:' + esc(cat.color || '#ddd6c8') + '">' + inner + '</div>';
   }
 
   function modeFor(r) {
@@ -572,28 +702,33 @@
 
   function renderGallery() {
     var unlockedCount = REWARDS.filter(isUnlocked).length;
-    $('galleryProgress').textContent = '已收集 ' + unlockedCount + ' / ' + REWARDS.length + '（每個收藏含寫真與叫聲）';
+    $('galleryProgress').textContent = '已收集 ' + unlockedCount + ' / ' + REWARDS.length + '（每關一張寫真＋一段叫聲）';
     $('galleryBar').style.width = (unlockedCount / REWARDS.length * 100) + '%';
     $('galleryModeBtn').textContent = settings.galleryPhoto ? '全部切換成：貓咪影子' : '全部切換成：彩色寫真';
-    $('gallery').innerHTML = [1, 2, 3].map(function (L) {
-      var list = REWARDS.filter(function (r) { return r.level === L; });
+    var html = CHS.map(function (c, idx) {
+      var ch = idx + 1;
+      var list = REWARDS.filter(function (r) { return r.ch === ch; });
       var got = list.filter(isUnlocked).length;
-      var head = '<div class="chapter-head"><h3>' + esc(CH[L].label) + '<small>' + esc(CH[L].name) + '</small></h3><span>' + got + ' / ' + list.length + '</span></div>';
-      var note = isLevelUnlocked(L) ? '' : '<p class="chapter-note">先通過「' + esc(CH[L - 1].name) + '」翻開本章</p>';
+      var head = '<div class="chapter-head"><h3>' + esc(c.label) + '<small>' + esc(c.name) + '・' + esc(c.cat.name) + '</small></h3><span>' + got + ' / ' + list.length + '</span></div>';
+      var note = isChapterUnlocked(ch) ? '' : '<p class="chapter-note">完成「' + esc(C(ch - 1).name) + '」全部關卡後翻開本章</p>';
       var cards = list.map(function (r) {
         if (!isUnlocked(r)) {
           return '<button class="cat-card locked" data-id="' + r.id + '">' + catArt(r, 'shadow', 'locked') +
-            '<div class="cat-name">???</div><div class="cat-sub">' + unlockText(r) + '</div></button>';
+            '<div class="cat-sub">通過' + stageText(r.stage) + '</div></button>';
         }
         var mode = modeFor(r);
         var isNew = progress.seen.indexOf(r.id) < 0;
         return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' + catArt(r, mode) +
-          '<div class="cat-name">' + esc(r.name) + '</div>' +
-          '<div class="slots"><span class="slot" data-toggle="' + r.id + '">' + ICONS.photo + (mode === 'shadow' ? '寫真' : '影子') + '</span>' +
-          '<span class="slot" data-play="' + r.id + '">' + ICONS.sound + '叫聲</span></div></button>';
+          '<div class="slots"><span class="slot" data-toggle="' + r.id + '" aria-label="切換寫真/影子">' + ICONS.photo + '</span>' +
+          '<span class="slot" data-play="' + r.id + '" aria-label="播放叫聲">' + ICONS.sound + '</span></div></button>';
       }).join('');
       return '<section class="chapter">' + head + note + '<div class="gallery-grid">' + cards + '</div></section>';
     }).join('');
+    var done = allDone();
+    html += '<section class="chapter"><div class="chapter-head"><h3>終極獎勵<small>全部通關後開啟</small></h3><span>' + (done ? '已開啟' : '未開啟') + '</span></div>' +
+      '<button class="ultimate-card' + (done ? '' : ' locked') + '" data-ultimate="1">' +
+      (done ? '🏆 打開終極獎勵' : ICONS.lock + ' 完成四章全部 ' + REWARDS.length + ' 關後開啟') + '</button></section>';
+    $('gallery').innerHTML = html;
   }
 
   function markSeen(r) {
@@ -601,13 +736,18 @@
   }
 
   function onGalleryClick(e) {
+    if (e.target.closest('[data-ultimate]')) {
+      Sound.click();
+      if (allDone()) openUltimate(); else toast('完成四章全部關卡，終極獎勵就會開啟');
+      return;
+    }
     var card = e.target.closest('.cat-card');
     if (!card) return;
     var r = rewardById(card.dataset.id);
     if (!r) return;
     if (card.classList.contains('locked')) {
       Sound.click();
-      toast(unlockText(r) + ' 即可解鎖');
+      toast('通過「' + C(r.ch).name + '」' + stageText(r.stage) + '即可解鎖');
       return;
     }
     if (e.target.closest('[data-toggle]')) {
@@ -624,11 +764,12 @@
 
   function openCatDetail(r) {
     var mode = modeFor(r);
+    var cat = C(r.ch).cat;
     function html() {
-      return '<p class="modal-kicker">' + esc(chName(r.level)) + '</p>' +
+      return '<p class="modal-kicker">' + esc(chName(r.ch)) + '・' + stageText(r.stage) + '</p>' +
         catArt(r, mode, 'detail-art') +
-        '<h2 class="modal-title">' + esc(r.name) + '</h2>' +
-        '<p class="story">' + esc(r.story || '') + '</p>' +
+        '<h2 class="modal-title">' + esc(rewardName(r)) + '</h2>' +
+        '<p class="story">' + esc(r.caption || cat.story || '') + '</p>' +
         '<div class="modal-actions">' +
         '<button class="btn ghost" data-act="mode">' + (mode === 'shadow' ? '彩色寫真' : '貓咪影子') + '</button>' +
         '<button class="btn ghost" data-act="meow">播放叫聲</button>' +
@@ -656,12 +797,16 @@
     $('setErrorCheck').checked = settings.errorCheck;
     $('setHighlight').checked = settings.highlight;
     $('setAutoNotes').checked = settings.autoNotes;
-    var rows = [1, 2, 3].map(function (L) {
-      return '<div class="stat-card"><b>' + esc(chName(L)) + '</b><small>' + esc(CH[L].desc) + (isLevelUnlocked(L) ? '' : '・未解鎖') + '</small>' +
-        '<span>通關 ' + (progress.wins[L] || 0) + ' 次</span>' +
-        '<span>最佳 ' + (progress.best[L] ? fmtTime(progress.best[L]) : '—') + '</span></div>';
+    var rows = CHS.map(function (c, idx) {
+      var ch = idx + 1;
+      var timed = Object.keys(c.timeLimits || {}).map(function (s) { return stageText(+s) + ' ' + c.timeLimits[s] + ' 分'; }).join('、');
+      return '<div class="stat-card"><b>' + esc(chName(ch)) + '</b><small>' + esc(c.desc) + (isChapterUnlocked(ch) ? '' : '・未解鎖') + '</small>' +
+        '<span>過關 ' + clearedList(ch).length + ' / ' + c.stages + '</span>' +
+        '<span>提示 ' + (c.hints ? '每關 ' + c.hints + ' 次' : '不能用') + '</span>' +
+        (timed ? '<span>限時 ' + esc(timed) + '</span>' : '') + '</div>';
     });
-    rows.push('<div class="stat-card"><b>總計</b><small>全部章節</small><span>通關 ' + progress.totalWins + ' 次</span>' +
+    rows.push('<div class="stat-card"><b>總計</b><small>全部章節</small><span>過關 ' + (progress.wins || 0) + ' 次</span>' +
+      '<span>超時 ' + (progress.fails || 0) + ' 次</span>' +
       '<span>收藏 ' + REWARDS.filter(isUnlocked).length + ' / ' + REWARDS.length + '</span></div>');
     $('statsList').innerHTML = rows.join('');
   }
@@ -678,16 +823,16 @@
         });
       });
     $('resetBtn').addEventListener('click', function () {
-      confirmModal('重置所有進度？', '閱讀紀錄、收藏與存檔都會清空，無法復原。', '確定重置', function () {
+      confirmModal('重置所有進度？', '關卡、收藏與存檔都會清空，無法復原。', '確定重置', function () {
         stopTimer();
-        progress = { totalWins: 0, wins: { 1: 0, 2: 0, 3: 0 }, best: {}, unlocked: [], seen: [] };
+        progress = freshProgress();
         store = { current: 1, games: {} };
         game = null;
         persistProgress();
         save(KEY_GAMES, store);
         renderSettings();
         toast('已重置');
-        newGame(1);
+        loadStage(1, 1);
       });
     });
   }
@@ -782,7 +927,11 @@
   function bindEvents() {
     $('levelTabs').addEventListener('click', function (e) {
       var b = e.target.closest('.level-tab');
-      if (b) switchLevel(+b.dataset.level);
+      if (b) switchChapter(+b.dataset.ch);
+    });
+    $('stageStrip').addEventListener('click', function (e) {
+      var b = e.target.closest('.stage');
+      if (b) switchStage(+b.dataset.stage);
     });
     $('cheerBtns').addEventListener('click', function (e) {
       var b = e.target.closest('.cheer-btn');
@@ -795,7 +944,8 @@
     $('eraseBtn').addEventListener('click', erase);
     $('notesBtn').addEventListener('click', toggleNotes);
     $('hintBtn').addEventListener('click', hint);
-    $('newBtn').addEventListener('click', requestNewGame);
+    $('newBtn').addEventListener('click', requestRestart);
+    $('retryBtn').addEventListener('click', restartStage);
     $('pauseBtn').addEventListener('click', function () { Sound.click(); setPaused(!paused); });
     $('resumeBtn').addEventListener('click', function () { setPaused(false); });
     $('gallery').addEventListener('click', onGalleryClick);
@@ -861,24 +1011,21 @@
     $('poweredBy').textContent = CONFIG.poweredBy;
     $('versionName').textContent = CONFIG.appName;
     $('versionPowered').textContent = CONFIG.poweredBy;
-    progress.unlocked = progress.unlocked.filter(function (id) { return !!rewardById(id); });
-    if (!isLevelUnlocked(store.current)) {
-      store.current = 1;
-      game = store.games[1] || null;
-    }
+    if (!C(store.current) || !isChapterUnlocked(store.current)) store.current = 1;
+    game = store.games[store.current] || null;
     buildLevelTabs();
     buildCheer();
     buildBoard();
     buildNumpad();
     bindEvents();
     bindSettings();
-    if (game && !game.completed) {
+    if (game && game.id && !game.completed) {
       if (!game.hinted) game.hinted = [];
       if (!game.history) game.history = [];
       render();
       startTimer();
     } else {
-      newGame(store.current || 1);
+      loadStage(store.current, nextStage(store.current));
     }
     registerSW();
   }
