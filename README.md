@@ -138,7 +138,7 @@ vercel --prod   # 正式部署
    - `media`：想用其他檔名時填路徑，例如 `'west-01': { photo: 'assets/cats/mochi.jpg', sound: 'assets/audio/mochi.m4a' }`。
    - `ultimateReward`：終極獎勵的標題、文字、照片、聲音。
 3. 也可以修改 `appName`、`poweredBy`、`herName`、`fromName`、`sweetMessages`。
-4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v8` → `v9`），`git push` 後重新打開 App 兩次即可更新離線快取。
+4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v9` → `v10`），`git push` 後重新打開 App 兩次即可更新離線快取。
 
 ## 🛠️ 技術說明
 

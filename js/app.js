@@ -1059,7 +1059,7 @@
       status.textContent = '此瀏覽器不支援離線模式';
       return;
     }
-    var hadController = !!navigator.serviceWorker.controller;
+    var controller = navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').then(function () {
       return navigator.serviceWorker.ready;
     }).then(function () {
@@ -1067,8 +1067,20 @@
     }).catch(function () {
       status.textContent = '離線快取註冊失敗（需透過 https 或 localhost 開啟）';
     });
+    var reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (hadController) toast('已更新，下次開啟即套用新版本');
+      var hadController = !!controller;
+      controller = navigator.serviceWorker.controller;
+      if (!hadController || reloading) return;
+      reloading = true;
+      persistGame();
+      location.reload();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (reg) reg.update();
+      }).catch(function () {});
     });
   }
 
@@ -1080,6 +1092,8 @@
     $('poweredBy').textContent = CONFIG.poweredBy;
     $('versionName').textContent = CONFIG.appName;
     $('versionPowered').textContent = CONFIG.poweredBy;
+    var poolSize = Object.keys(STAGES).reduce(function (n, k) { return n + [].concat(STAGES[k]).length; }, 0);
+    $('appVersion').textContent = 'v1.3.0・題庫 ' + poolSize + ' 題';
     if (!C(store.current) || !isChapterUnlocked(store.current)) store.current = 1;
     game = store.games[store.current] || null;
     buildLevelTabs();
