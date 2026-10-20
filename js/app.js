@@ -433,9 +433,10 @@
     if (++tickCount % 5 === 0) persistGame();
   }
   function timeUp() {
+    if (game.failed) return;
+    game.failed = true;
     stopTimer();
     game.elapsedMs = game.timeLimitMs;
-    game.failed = true;
     selected = -1;
     progress.fails = (progress.fails || 0) + 1;
     persistProgress();
