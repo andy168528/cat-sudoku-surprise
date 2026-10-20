@@ -522,7 +522,8 @@
     var pre = STAGES[stageId(ch, s)];
     if (pre) {
       var toArr = function (str) { return str.split('').map(Number); };
-      var t = S.transform(toArr(pre.p), toArr(pre.s));
+      var t = { puzzle: toArr(pre.p), solution: toArr(pre.s) };
+      if (typeof S.transform === 'function') t = S.transform(t.puzzle, t.solution);
       return { puzzle: t.puzzle, solution: t.solution, holes: pre.h, grade: pre.g };
     }
     var r = S.generate(C(ch).level, { seed: Math.floor(Math.random() * 1e9) });
@@ -534,7 +535,14 @@
     cancelCountdown();
     $('loading').classList.remove('hidden');
     setTimeout(function () {
-      var p = stagePuzzle(ch, s);
+      var p;
+      try {
+        p = stagePuzzle(ch, s);
+      } catch (e) {
+        $('loading').classList.add('hidden');
+        toast('翻頁失敗，請重新整理再試一次');
+        return;
+      }
       game = {
         ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
         values: p.puzzle.slice(), notes: new Array(81).fill(0),
