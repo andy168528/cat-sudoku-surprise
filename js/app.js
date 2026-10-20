@@ -64,6 +64,7 @@
   var selected = -1;
   var noteMode = false;
   var paused = false;
+  var countdownId = null;
   var timerId = null;
   var lastTick = 0;
   var tickCount = 0;
@@ -95,7 +96,9 @@
   }
   function allDone() { return CHS.every(function (c, i) { return isChapterDone(i + 1); }); }
   function hintsAllowed(g) { return C(g.ch).hints || 0; }
-  function isFrozen() { return !game || game.completed || game.failed || paused; }
+  function isFrozen() { return !game || game.completed || game.failed || paused || !game.started; }
+  function isReady(g) { return !!g && !g.completed && !g.failed && !g.started; }
+  function inPlay(g) { return !!g && !g.completed && !g.failed && !!g.started; }
 
   /* ---------------- 盤面 ---------------- */
 
@@ -208,11 +211,58 @@
     $('hintCount').textContent = allow === 0 ? '禁用' : (allow - game.hints) + '/' + allow;
     $('notesBtn').classList.toggle('active', noteMode);
     $('notesState').textContent = noteMode ? '開' : '關';
-    $('pauseOverlay').classList.toggle('hidden', !paused || !!game.failed);
+    $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
+    renderReady();
     $('failOverlay').classList.toggle('hidden', !game.failed);
     if (game.failed) $('failText').textContent = '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成，再挑戰一次吧！';
-    $('board').classList.toggle('blur', paused || !!game.failed);
+    $('board').classList.toggle('blur', paused || !!game.failed || isReady(game));
     $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
+    $('pauseBtn').classList.toggle('disabled', !inPlay(game));
+  }
+
+  function renderReady() {
+    var ready = isReady(game);
+    $('readyOverlay').classList.toggle('hidden', !ready);
+    $('readyOverlay').classList.toggle('counting', ready && !!countdownId);
+    if (!ready) return;
+    var c = C(game.ch), best = progress.best[game.id];
+    $('readyKicker').textContent = chName(game.ch) + '・' + stageText(game.stage) + ' / ' + c.stages;
+    $('readyTitle').textContent = game.timeLimitMs ? '限時挑戰' : '準備好了嗎？';
+    $('readyInfo').innerHTML =
+      '<li>挖空 ' + game.holes + ' 格・' + esc(GRADE_TEXT[game.grade] || '') + '</li>' +
+      '<li>' + (c.hints ? '提示 ' + c.hints + ' 次' : '不能使用提示') + '</li>' +
+      '<li' + (game.timeLimitMs ? ' class="warn"' : '') + '>' + (game.timeLimitMs ? '限時 ' + fmtTime(game.timeLimitMs) + ' 內完成' : '不限時') + '</li>' +
+      (best != null ? '<li>最佳紀錄 ' + fmtTime(best) + '</li>' : '');
+    $('startBtn').textContent = game.timeLimitMs ? '開始倒數' : '開始';
+  }
+
+  function cancelCountdown() {
+    if (countdownId) { clearInterval(countdownId); countdownId = null; }
+    if (game) render();
+  }
+  function beginGame() {
+    if (!isReady(game) || countdownId) return;
+    Sound.click();
+    var go = function () {
+      countdownId = null;
+      game.started = true;
+      paused = false;
+      persistGame();
+      render();
+      startTimer();
+    };
+    if (!game.timeLimitMs) { go(); return; }
+    var n = 3;
+    var show = function () { $('countdown').textContent = n > 0 ? n : '開始！'; };
+    countdownId = setInterval(function () {
+      n--;
+      if (n < 0) { clearInterval(countdownId); go(); return; }
+      show();
+      if (n > 0) Sound.note(); else Sound.correct();
+    }, 800);
+    show();
+    Sound.note();
+    render();
   }
 
   function renderTimer() {
@@ -285,7 +335,7 @@
   /* ---------------- 互動 ---------------- */
 
   function selectCell(i) {
-    if (!game || paused || game.failed) return;
+    if (isFrozen()) return;
     selected = i;
     render();
   }
@@ -453,7 +503,7 @@
     });
   }
   function setPaused(v) {
-    if (!game || game.completed || game.failed) v = false;
+    if (!inPlay(game)) v = false;
     paused = v;
     if (paused) stopTimer(); else startTimer();
     persistGame();
@@ -480,6 +530,7 @@
 
   function loadStage(ch, s) {
     stopTimer();
+    cancelCountdown();
     $('loading').classList.remove('hidden');
     setTimeout(function () {
       var p = stagePuzzle(ch, s);
@@ -487,7 +538,7 @@
         ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
         values: p.puzzle.slice(), notes: new Array(81).fill(0),
         mistakes: 0, hints: 0, hinted: [], elapsedMs: 0, timeLimitMs: limitMs(ch, s),
-        completed: false, failed: false, history: [], grade: p.grade, holes: p.holes, createdAt: Date.now()
+        completed: false, failed: false, started: false, history: [], grade: p.grade, holes: p.holes, createdAt: Date.now()
       };
       store.current = ch;
       selected = -1;
@@ -496,8 +547,6 @@
       persistGame();
       $('loading').classList.add('hidden');
       render();
-      startTimer();
-      if (game.timeLimitMs) toast('限時關：' + fmtTime(game.timeLimitMs) + ' 內完成才算過關');
     }, 60);
   }
 
@@ -511,16 +560,16 @@
     }
     if (ch === store.current && game) return;
     stopTimer();
+    cancelCountdown();
     persistGame();
     store.current = ch;
     var g = store.games[ch];
     if (g && g.id && !g.completed) {
       game = g;
       selected = -1;
-      paused = false;
+      paused = inPlay(g);
       persistGame();
       render();
-      startTimer();
       toast('已翻到「' + C(ch).name + '」' + stageText(g.stage) + '的書籤');
     } else {
       loadStage(ch, nextStage(ch));
@@ -848,7 +897,7 @@
     for (i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.view === name);
     if (name === 'gallery') renderGallery();
     if (name === 'settings') renderSettings();
-    if (name === 'game') startTimer(); else stopTimer();
+    if (name === 'game') startTimer(); else { stopTimer(); cancelCountdown(); }
     persistGame();
     window.scrollTo(0, 0);
   }
@@ -949,6 +998,7 @@
     $('retryBtn').addEventListener('click', restartStage);
     $('pauseBtn').addEventListener('click', function () { Sound.click(); setPaused(!paused); });
     $('resumeBtn').addEventListener('click', function () { setPaused(false); });
+    $('startBtn').addEventListener('click', beginGame);
     $('gallery').addEventListener('click', onGalleryClick);
     $('galleryModeBtn').addEventListener('click', function () {
       settings.galleryPhoto = !settings.galleryPhoto;
@@ -965,6 +1015,7 @@
 
     document.addEventListener('keydown', function (e) {
       if (currentView !== 'game' || !$('modal').classList.contains('hidden')) return;
+      if (isReady(game)) { if (e.key === 'Enter' || e.key === ' ') { beginGame(); e.preventDefault(); } return; }
       if (e.key >= '1' && e.key <= '9') { input(+e.key); e.preventDefault(); }
       else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); e.preventDefault(); }
       else if (e.key === 'ArrowUp') { moveSelection(-1, 0); e.preventDefault(); }
@@ -977,8 +1028,12 @@
     });
 
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { stopTimer(); persistGame(); }
-      else startTimer();
+      if (document.hidden) {
+        cancelCountdown();
+        if (inPlay(game)) { paused = true; render(); }
+        stopTimer();
+        persistGame();
+      }
     });
     window.addEventListener('pagehide', function () { stopTimer(); persistGame(); });
   }
@@ -1023,8 +1078,9 @@
     if (game && game.id && !game.completed) {
       if (!game.hinted) game.hinted = [];
       if (!game.history) game.history = [];
+      if (game.started === undefined) game.started = game.elapsedMs > 0 || hasProgress(game);
+      paused = inPlay(game);
       render();
-      startTimer();
     } else {
       loadStage(store.current, nextStage(store.current));
     }

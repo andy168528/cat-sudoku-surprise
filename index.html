@@ -48,6 +48,13 @@
             <p>休息一下，鴻小兵陪妳。</p>
             <button id="resumeBtn" class="btn primary">繼續閱讀</button>
           </div>
+          <div id="readyOverlay" class="overlay ready hidden">
+            <p id="readyKicker" class="overlay-kicker"></p>
+            <p id="readyTitle" class="overlay-title">準備好了嗎？</p>
+            <ul id="readyInfo" class="ready-info"></ul>
+            <button id="startBtn" class="btn primary">開始</button>
+            <div id="countdown" class="countdown" aria-live="assertive"></div>
+          </div>
           <div id="failOverlay" class="overlay hidden">
             <p class="overlay-title">時間到</p>
             <p id="failText"></p>
