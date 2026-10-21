@@ -80,6 +80,31 @@
   }
 
   var missing = {};
+  var gunBuf = null;
+
+  // 合成槍聲：衰減白噪音 + 低通掃頻 + 低頻重擊
+  function synthGun() {
+    var c = getCtx();
+    if (!c || !enabled) return;
+    var t0 = c.currentTime, len = Math.floor(c.sampleRate * 0.25);
+    if (!gunBuf || gunBuf.sampleRate !== c.sampleRate) {
+      gunBuf = c.createBuffer(1, len, c.sampleRate);
+      var d = gunBuf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    }
+    var src = c.createBufferSource();
+    src.buffer = gunBuf;
+    var f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(4000, t0);
+    f.frequency.exponentialRampToValueAtTime(300, t0 + 0.2);
+    var gain = c.createGain();
+    gain.gain.setValueAtTime(0.9, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.25);
+    src.connect(f).connect(gain).connect(c.destination);
+    src.start(t0);
+    tone({ freq: 140, to: 40, dur: 0.12, vol: 0.4, type: 'sine' });
+  }
 
   function loadBuffer(url) {
     var c = getCtx();
@@ -133,6 +158,11 @@
         tone({ freq: f, dur: 0.25, vol: 0.14, type: 'triangle', delay: i * 0.12 });
       });
       tone({ freq: 1319, dur: 0.5, vol: 0.12, type: 'sine', delay: 0.5 });
+    },
+    // 槍聲：有 assets/audio/gun.m4a / gun.mp3 就播放，沒有就合成
+    gun: function (urls) {
+      if (!enabled) return;
+      if (urls && urls.length) playFirst(urls).catch(synthGun); else synthGun();
     },
     // urls：音檔候選路徑（mp3 / m4a）；全部失敗時以 pitch 合成喵聲
     meow: function (urls, pitch) {

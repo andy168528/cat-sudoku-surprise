@@ -7,16 +7,22 @@
   var STAGES = window.CAT_SUDOKU_STAGES || {};
   var REWARDS = CONFIG.rewards;
   var CHS = CONFIG.chapters;
+  var MODES = CONFIG.modes;
+  var CHAOS_MS = (CONFIG.chaosEveryMin || 2) * 60000;
+  var PHOTOS = REWARDS.filter(function (r) { return r.kind === 'photo'; });
+  var SOUNDS = REWARDS.filter(function (r) { return r.kind === 'sound'; });
   var ICONS = {
     lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     sound: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>',
     photo: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="12" cy="12" r="3.5"/></svg>',
     pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>',
-    play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>'
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>',
+    gun: '<svg viewBox="0 0 24 24"><path d="M2 7h17l2 2v3h-8l-1.5 2.5H9L8 21H3.5l1.5-9H2z"/><path d="M10.5 12v2.5"/><path d="M19 7V5"/></svg>'
   };
 
-  var KEY_GAMES = 'catSudoku.games.v2';
-  var KEY_PROGRESS = 'catSudoku.progress.v2';
+  var KEY_GAMES = 'catSudoku.games.v3';
+  var KEY_PROGRESS = 'catSudoku.progress.v3';
+  var OLD_PROGRESS = 'catSudoku.progress.v2';
   var KEY_SETTINGS = 'catSudoku.settings.v1';
   var MAX_HISTORY = 100;
   var GRADE_TEXT = { 1: '基本技巧', 2: '區塊摒除', 3: '數對 / 數組', 4: 'X-Wing 級', 5: '超進階推理' };
@@ -47,19 +53,40 @@
   /* ---------------- 章節 / 關卡 ---------------- */
 
   function C(ch) { return CHS[ch - 1]; }
+  function M(lv) { return MODES[lv - 1]; }
+  function lvName(lv) { return 'Lv.' + lv + ' ' + M(lv).name; }
   function chName(ch) { return C(ch).label + '・' + C(ch).name; }
-  function stageId(ch, s) { return C(ch).key + '-' + pad2(s); }
+  function ck(lv, ch) { return lv + '-' + ch; }
+  function stageId(ch, s, lv) { return 'L' + (lv || store.lv) + '-' + C(ch).key + '-' + pad2(s); }
+  function poolId(ch, s) { return C(ch).key + '-' + pad2(s); }
+  function lvStages() { return CHS.reduce(function (n, c) { return n + c.stages; }, 0); }
   function stageText(s) { return '第' + (NUM_TEXT[s] || s) + '關'; }
   function limitMs(ch, s) { var m = (C(ch).timeLimits || {})[s]; return m ? m * 60000 : 0; }
 
   /* ---------------- 狀態 ---------------- */
 
-  function freshProgress() { return { cleared: {}, best: {}, seen: [], wins: 0, fails: 0, ultimate: false }; }
+  function freshProgress() { return { cleared: {}, best: {}, seen: [], wins: 0, fails: 0, rulesSeen: [], gun: false }; }
+  // 舊版（四章 15 關）進度：前 10 關（鴻小兵前 3 關）轉成 Lv.1
+  function migrateProgress() {
+    var old = load(OLD_PROGRESS, null), p = freshProgress();
+    if (!old || !old.cleared) return p;
+    CHS.forEach(function (c, idx) {
+      var list = (old.cleared[idx + 1] || []).filter(function (s) { return s <= c.stages; });
+      if (list.length) p.cleared[ck(1, idx + 1)] = list;
+      for (var s = 1; s <= c.stages; s++) {
+        var b = (old.best || {})[c.key + '-' + pad2(s)];
+        if (b != null) p.best['L1-' + c.key + '-' + pad2(s)] = b;
+      }
+    });
+    p.wins = old.wins || 0;
+    p.fails = old.fails || 0;
+    return p;
+  }
   var settings = Object.assign({ sound: true, errorCheck: true, highlight: true, autoNotes: true, galleryPhoto: true },
     load(KEY_SETTINGS, {}));
-  var progress = Object.assign(freshProgress(), load(KEY_PROGRESS, {}));
-  var store = Object.assign({ current: 1, games: {} }, load(KEY_GAMES, {}));
-  var game = store.games[store.current] || null;
+  var progress = Object.assign(freshProgress(), load(KEY_PROGRESS, null) || migrateProgress());
+  var store = Object.assign({ lv: 1, current: 1, games: {} }, load(KEY_GAMES, {}));
+  var game = null;
 
   var selected = -1;
   var noteMode = false;
@@ -76,25 +103,36 @@
   Sound.setEnabled(settings.sound);
 
   function persistGame() {
-    if (game) store.games[game.ch] = game;
+    if (game) {
+      if (game.timeLimitMs && inPlay(game)) game.savedAt = Date.now();
+      store.games[ck(game.lv, game.ch)] = game;
+    }
     save(KEY_GAMES, store);
   }
   function persistProgress() { save(KEY_PROGRESS, progress); }
   function persistSettings() { save(KEY_SETTINGS, settings); }
 
-  function clearedList(ch) { return progress.cleared[ch] || (progress.cleared[ch] = []); }
-  function isStageCleared(ch, s) { return clearedList(ch).indexOf(s) >= 0; }
-  function isChapterDone(ch) {
-    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s)) return false;
+  function clearedList(ch, lv) {
+    var k = ck(lv || store.lv, ch);
+    return progress.cleared[k] || (progress.cleared[k] = []);
+  }
+  function isStageCleared(ch, s, lv) { return clearedList(ch, lv).indexOf(s) >= 0; }
+  function isChapterDone(ch, lv) {
+    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s, lv)) return false;
     return true;
   }
-  function isChapterUnlocked(ch) { return ch === 1 || isChapterDone(ch - 1); }
-  function isStageUnlocked(ch, s) { return isChapterUnlocked(ch) && (s === 1 || isStageCleared(ch, s - 1)); }
-  function nextStage(ch) {
-    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s)) return s;
+  function isLvDone(lv) { return CHS.every(function (c, i) { return isChapterDone(i + 1, lv); }); }
+  function isLvUnlocked(lv) { return lv === 1 || isLvDone(lv - 1); }
+  function isChapterUnlocked(ch, lv) {
+    lv = lv || store.lv;
+    return isLvUnlocked(lv) && (ch === 1 || isChapterDone(ch - 1, lv));
+  }
+  function isStageUnlocked(ch, s, lv) { return isChapterUnlocked(ch, lv) && (s === 1 || isStageCleared(ch, s - 1, lv)); }
+  function nextStage(ch, lv) {
+    for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s, lv)) return s;
     return C(ch).stages;
   }
-  function allDone() { return CHS.every(function (c, i) { return isChapterDone(i + 1); }); }
+  function hasGun() { return !!progress.gun || isLvDone(1); }
   function hintsAllowed(g) { return C(g.ch).hints || 0; }
   function isFrozen() { return !game || game.completed || game.failed || paused || !game.started; }
   function isReady(g) { return !!g && !g.completed && !g.failed && !g.started; }
@@ -180,12 +218,15 @@
       if (conflicts.has(i) && settings.errorCheck) cls += ' conflict';
       if (game.hinted.indexOf(i) >= 0) cls += ' hinted';
       var c = cells[i];
-      if (c.el.className.replace(/ (pop|shake)/g, '') !== cls) {
-        var keep = c.el.className.match(/ (pop|shake)/g);
+      if (c.el.className.replace(/ (pop|shake|moved|eaten)/g, '') !== cls) {
+        var keep = c.el.className.match(/ (pop|shake|moved|eaten)/g);
         c.el.className = cls + (keep ? keep.join('') : '');
       }
       var txt = v ? String(v) : '';
       if (c.v.textContent !== txt) c.v.textContent = txt;
+      var sc = game.scales ? game.scales[i] : 1;
+      var tf = sc !== 1 ? 'scale(' + sc + ')' : '';
+      if (c.v.style.transform !== tf) c.v.style.transform = tf;
       var n = v ? 0 : game.notes[i];
       for (var d = 1; d <= 9; d++) {
         var span = c.notes[d - 1];
@@ -200,7 +241,7 @@
       btn.classList.toggle('done', left <= 0);
       btn.lastChild.textContent = left > 0 ? left : '✓';
     }
-    $('levelLabel').textContent = chName(game.ch) + '・' + stageText(game.stage) + ' / ' + C(game.ch).stages;
+    $('levelLabel').textContent = 'Lv.' + game.lv + '・' + chName(game.ch) + '・' + stageText(game.stage) + ' / ' + C(game.ch).stages;
     $('gradeLabel').textContent = '挖空 ' + game.holes + '・' + (GRADE_TEXT[game.grade] || '—');
     $('filledLabel').textContent = filled + ' / 81';
     $('mistakes').textContent = game.mistakes;
@@ -217,7 +258,7 @@
     if (game.failed) $('failText').textContent = '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成，再挑戰一次吧！';
     $('board').classList.toggle('blur', paused || !!game.failed || isReady(game));
     $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
-    $('pauseBtn').classList.toggle('disabled', !inPlay(game));
+    $('pauseBtn').classList.toggle('disabled', !inPlay(game) || !!game.timeLimitMs);
   }
 
   function renderReady() {
@@ -226,7 +267,7 @@
     $('readyOverlay').classList.toggle('counting', ready && !!countdownId);
     if (!ready) return;
     var c = C(game.ch), best = progress.best[game.id];
-    $('readyKicker').textContent = chName(game.ch) + '・' + stageText(game.stage) + ' / ' + c.stages;
+    $('readyKicker').textContent = 'Lv.' + game.lv + '・' + chName(game.ch) + '・' + stageText(game.stage) + ' / ' + c.stages;
     var replay = isStageCleared(game.ch, game.stage) ? '重玩・' : '';
     $('readyTitle').textContent = replay + (game.timeLimitMs ? '限時挑戰' : '準備好了嗎？');
     $('readyInfo').innerHTML =
@@ -280,6 +321,16 @@
       stat.classList.remove('urgent');
     }
     stat.classList.toggle('timed', timed);
+    var cl = $('chaosLabel'), on = game.lv > 1 && !game.completed && !game.failed;
+    cl.classList.toggle('hidden', !on);
+    if (on) cl.textContent = M(game.lv).name + ' ' + fmtTime(Math.max(0, game.chaosAt - game.elapsedMs));
+  }
+
+  function buildLvTabs() {
+    $('lvTabs').innerHTML = MODES.map(function (m) {
+      return '<button class="lv-tab" data-lv="' + m.lv + '"><small>Lv.' + m.lv + '</small><b>' + esc(m.name) + '</b>' +
+        '<span class="lock">' + ICONS.lock + '</span></button>';
+    }).join('') + '<button id="rulesBtn" class="lv-rules">規則</button>';
   }
 
   function buildLevelTabs() {
@@ -290,6 +341,15 @@
   }
 
   function renderTabs() {
+    var lts = document.querySelectorAll('.lv-tab');
+    for (var l = 0; l < lts.length; l++) {
+      var lv = +lts[l].dataset.lv, un = isLvUnlocked(lv);
+      lts[l].classList.toggle('active', lv === store.lv);
+      lts[l].classList.toggle('locked', !un);
+      lts[l].classList.toggle('done', isLvDone(lv));
+      lts[l].querySelector('.lock').classList.toggle('hidden', un);
+    }
+    $('gunBtn').classList.toggle('hidden', !(hasGun() && store.lv > 1));
     var tabs = document.querySelectorAll('.level-tab');
     for (var t = 0; t < tabs.length; t++) {
       var ch = +tabs[t].dataset.ch;
@@ -462,7 +522,7 @@
 
   function startTimer() {
     stopTimer();
-    if (isFrozen() || currentView !== 'game' || document.hidden) return;
+    if (isFrozen() || document.hidden || (currentView !== 'game' && !game.timeLimitMs)) return;
     lastTick = Date.now();
     timerId = setInterval(tick, 1000);
   }
@@ -481,7 +541,66 @@
     lastTick = now;
     renderTimer();
     if (game.timeLimitMs && game.elapsedMs >= game.timeLimitMs) { timeUp(); return; }
+    if (game.lv > 1 && game.elapsedMs >= game.chaosAt) chaos();
     if (++tickCount % 5 === 0) persistGame();
+  }
+
+  /* ---------------- 搗亂（Lv.2～4） ---------------- */
+
+  function replaceHinted(from, to) {
+    var k = game.hinted.indexOf(from);
+    if (k < 0) return;
+    if (to >= 0) game.hinted[k] = to; else game.hinted.splice(k, 1);
+  }
+
+  function chaos() {
+    game.chaosAt = (Math.floor(game.elapsedMs / CHAOS_MS) + 1) * CHAOS_MS;
+    var eff = M(game.lv).effect, msg = '', hit = -1, mine = [];
+    for (var i = 0; i < 81; i++) if (!game.puzzle[i] && game.values[i]) mine.push(i);
+    if (eff === 'size') {
+      var sizes = [0.45, 0.55, 0.65, 1.35, 1.5, 1.7];
+      game.scales = game.values.map(function () { return sizes[Math.floor(Math.random() * sizes.length)]; });
+      msg = '肥肥臭指北把數字變得忽大忽小！';
+    } else if (eff === 'shift') {
+      var moves = [];
+      mine.forEach(function (from) {
+        [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(function (d) {
+          for (var k = 1; k <= 3; k++) {
+            var r = S.ROW[from] + d[0] * k, c = S.COL[from] + d[1] * k;
+            if (r < 0 || r > 8 || c < 0 || c > 8) break;
+            var to = r * 9 + c;
+            if (!game.puzzle[to] && !game.values[to]) moves.push([from, to, k]);
+          }
+        });
+      });
+      if (moves.length) {
+        var mv = moves[Math.floor(Math.random() * moves.length)];
+        game.values[mv[1]] = game.values[mv[0]];
+        game.values[mv[0]] = 0;
+        game.notes[mv[1]] = 0;
+        replaceHinted(mv[0], mv[1]);
+        hit = mv[1];
+        msg = '指西作亂！把一個數字推走了 ' + mv[2] + ' 格';
+      }
+    } else if (eff === 'eat' && mine.length) {
+      hit = mine[Math.floor(Math.random() * mine.length)];
+      game.values[hit] = 0;
+      replaceHinted(hit, -1);
+      msg = '暴食指南貓吃掉了一個數字！';
+    }
+    if (!msg) return;
+    game.history = [];
+    Sound.meow(null, eff === 'eat' ? 0.7 : eff === 'size' ? 1.5 : 1);
+    toast(msg);
+    persistGame();
+    render();
+    if (hit >= 0) flash(hit, eff === 'eat' ? 'eaten' : 'moved');
+    if (eff === 'size') {
+      var b = $('board');
+      b.classList.remove('wobble');
+      void b.offsetWidth;
+      b.classList.add('wobble');
+    }
   }
   function timeUp() {
     if (game.failed) return;
@@ -504,6 +623,7 @@
     });
   }
   function setPaused(v) {
+    if (v && game && game.timeLimitMs && inPlay(game)) { toast('限時關不能暫停喔！'); return; }
     if (!inPlay(game)) v = false;
     paused = v;
     if (paused) stopTimer(); else startTimer();
@@ -520,7 +640,7 @@
   }
 
   function stagePuzzle(ch, s) {
-    var pool = [].concat(STAGES[stageId(ch, s)] || []);
+    var pool = [].concat(STAGES[poolId(ch, s)] || []);
     if (pool.length) {
       var last = game && game.id === stageId(ch, s) ? game.variant : -1;
       var v = Math.floor(Math.random() * pool.length);
@@ -549,10 +669,11 @@
         return;
       }
       game = {
-        ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
+        lv: store.lv, ch: ch, stage: s, id: stageId(ch, s), puzzle: p.puzzle, solution: p.solution,
         values: p.puzzle.slice(), notes: new Array(81).fill(0),
         mistakes: 0, hints: 0, hinted: [], elapsedMs: 0, timeLimitMs: limitMs(ch, s),
-        completed: false, failed: false, started: false, history: [], grade: p.grade, holes: p.holes, variant: p.variant, createdAt: Date.now()
+        completed: false, failed: false, started: false, history: [], grade: p.grade, holes: p.holes, variant: p.variant,
+        chaosAt: CHAOS_MS, scales: null, savedAt: 0, createdAt: Date.now()
       };
       store.current = ch;
       selected = -1;
@@ -566,6 +687,40 @@
 
   function restartStage() { if (game) loadStage(game.ch, game.stage); }
 
+  function resumeTimed(g) {
+    if (g.savedAt) g.elapsedMs += Math.max(0, Date.now() - g.savedAt);
+    g.savedAt = 0;
+  }
+
+  function resumeGame(g) {
+    game = g;
+    selected = -1;
+    if (!game.hinted) game.hinted = [];
+    if (!game.history) game.history = [];
+    if (game.started === undefined) game.started = game.elapsedMs > 0 || hasProgress(game);
+    if (game.chaosAt == null) game.chaosAt = CHAOS_MS;
+    var timed = inPlay(game) && !!game.timeLimitMs;
+    if (timed) resumeTimed(game);
+    paused = inPlay(game) && !timed;
+    render();
+    if (timed) { if (game.elapsedMs >= game.timeLimitMs) timeUp(); else startTimer(); }
+  }
+
+  function openChapter(ch) {
+    stopTimer();
+    cancelCountdown();
+    persistGame();
+    store.current = ch;
+    var g = store.games[ck(store.lv, ch)];
+    if (g && g.id && !g.completed) {
+      resumeGame(g);
+      persistGame();
+      toast('已翻到「' + C(ch).name + '」' + stageText(g.stage) + '的書籤');
+    } else {
+      loadStage(ch, nextStage(ch));
+    }
+  }
+
   function switchChapter(ch) {
     Sound.click();
     if (!isChapterUnlocked(ch)) {
@@ -573,22 +728,38 @@
       return;
     }
     if (ch === store.current && game) return;
+    openChapter(ch);
+  }
+
+  function switchLv(lv) {
+    Sound.click();
+    if (!isLvUnlocked(lv)) {
+      toast('先破完 ' + lvName(lv - 1) + ' 全部 ' + lvStages() + ' 關，才能進入 ' + lvName(lv));
+      return;
+    }
+    if (lv === store.lv && game) return;
     stopTimer();
     cancelCountdown();
     persistGame();
-    store.current = ch;
-    var g = store.games[ch];
-    if (g && g.id && !g.completed) {
-      game = g;
-      selected = -1;
-      paused = inPlay(g);
-      persistGame();
-      render();
-      toast('已翻到「' + C(ch).name + '」' + stageText(g.stage) + '的書籤');
-    } else {
-      loadStage(ch, nextStage(ch));
-    }
+    store.lv = lv;
+    var ch = 1;
+    while (ch < CHS.length && isChapterDone(ch, lv)) ch++;
+    openChapter(ch);
+    maybeRules(lv);
   }
+
+  function showRules(lv) {
+    var m = M(lv);
+    var extra = lv > 1 && hasGun() ? '<p class="next-goal">終極大獎「' + esc(CONFIG.gun.name) + '」隨時可以拿出來掃射。</p>' : '';
+    openModal('<p class="modal-kicker">Lv.' + lv + '・規則說明</p><h2 class="modal-title">' + esc(m.name) + '</h2>' +
+      '<div class="ornament">— ✦ —</div><ol class="rules-list">' +
+      m.rules.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' + extra +
+      '<div class="modal-actions"><button class="btn primary" data-act="ok">我知道了</button></div>', function () {
+      if (progress.rulesSeen.indexOf(lv) < 0) { progress.rulesSeen.push(lv); persistProgress(); }
+      closeModal();
+    });
+  }
+  function maybeRules(lv) { if (progress.rulesSeen.indexOf(lv) < 0) showRules(lv); }
 
   function switchStage(s) {
     var ch = store.current;
@@ -614,9 +785,12 @@
   /* ---------------- 過關 & 獎勵 ---------------- */
 
   function rewardById(id) { return REWARDS.filter(function (r) { return r.id === id; })[0]; }
-  function isUnlocked(r) { return isStageCleared(r.ch, r.stage); }
-  function rewardName(r) { return C(r.ch).cat.name + '・' + pad2(r.stage); }
+  function isUnlocked(r) { return isStageCleared(r.ch, r.stage, r.lv); }
+  function rewardName(r) {
+    return r.kind === 'sound' ? C(r.ch).cat.name + '叫聲・' + pad2(r.stage) : C(r.ch).cat.name + '・Lv.' + r.lv + '・' + r.n;
+  }
   function playReward(r) { Sound.meow(CONFIG.mediaFor(r).sounds, r.pitch); }
+  function unlockedSounds(ch) { return SOUNDS.filter(function (r) { return r.ch === ch && isUnlocked(r); }); }
 
   function checkWin() {
     if (!game || game.completed || game.failed) return;
@@ -626,76 +800,179 @@
     if (game.failed) return;
     game.completed = true;
     selected = -1;
-    var ch = game.ch, s = game.stage;
-    var firstClear = !isStageCleared(ch, s);
-    if (firstClear) clearedList(ch).push(s);
+    var lv = game.lv, ch = game.ch, s = game.stage;
+    var firstClear = !isStageCleared(ch, s, lv);
+    var hadGun = hasGun();
+    if (firstClear) clearedList(ch, lv).push(s);
     progress.wins = (progress.wins || 0) + 1;
     var prevBest = progress.best[game.id];
     var isBest = !prevBest || game.elapsedMs < prevBest;
     if (isBest) progress.best[game.id] = game.elapsedMs;
-    var reward = firstClear ? rewardById(game.id) : null;
-    var chapterDone = firstClear && isChapterDone(ch);
-    var nextCh = chapterDone && ch < CHS.length ? ch + 1 : 0;
-    var ultimate = chapterDone && allDone();
-    if (ultimate) progress.ultimate = true;
+    var chapterDone = firstClear && isChapterDone(ch, lv);
+    var lvDone = chapterDone && isLvDone(lv);
+    var o = {
+      firstClear: firstClear, isBest: isBest, chapterDone: chapterDone, lvDone: lvDone,
+      rewards: firstClear ? REWARDS.filter(function (r) { return r.lv === lv && r.ch === ch && r.stage === s; }) : [],
+      nextCh: chapterDone && ch < CHS.length ? ch + 1 : 0,
+      nextLv: lvDone && lv < MODES.length ? lv + 1 : 0,
+      gunNow: !hadGun && hasGun()
+    };
+    o.allClear = lvDone && !o.nextLv;
+    if (o.gunNow) progress.gun = true;
     persistProgress();
     persistGame();
     render();
-    setTimeout(function () { celebrate(reward, isBest, chapterDone, nextCh, ultimate); }, 350);
+    setTimeout(function () { celebrate(o); }, 350);
   }
 
-  function celebrate(reward, isBest, chapterDone, nextCh, ultimate) {
+  function soundArt(r) {
+    return '<div class="cat-art photo sound-art" style="--c:' + esc(C(r.ch).cat.color || '#ddd6c8') + '">' + ICONS.sound +
+      '<span class="cat-no">' + pad2(r.stage) + '</span></div>';
+  }
+
+  function celebrate(o) {
     Sound.win();
-    if (reward) setTimeout(function () { playReward(reward); }, 900);
+    var snd = o.rewards.filter(function (r) { return r.kind === 'sound'; })[0];
+    if (snd) setTimeout(function () { playReward(snd); }, 900);
     confetti();
     var g = game, c = C(g.ch);
     var msgs = CONFIG.sweetMessages;
     var sweet = personalize(msgs[Math.floor(Math.random() * msgs.length)]);
     var allow = hintsAllowed(g);
-    var html = '<p class="modal-kicker">' + esc(chName(g.ch)) + '</p>' +
-      '<h2 class="modal-title">' + (chapterDone ? esc(c.name) + '・完' : stageText(g.stage) + '・過關') + '</h2>' +
+    var title = o.lvDone ? lvName(g.lv) + '・完' : o.chapterDone ? esc(c.name) + '・完' : stageText(g.stage) + '・過關';
+    var html = '<p class="modal-kicker">Lv.' + g.lv + '・' + esc(chName(g.ch)) + '</p>' +
+      '<h2 class="modal-title">' + title + '</h2>' +
       '<div class="ornament">— ✦ —</div>' +
       '<p class="sweet">' + esc(sweet) + '<small>— 愛妳的' + esc(CONFIG.fromName) + '</small></p>' +
-      '<div class="result-stats"><span>時間 <b>' + fmtTime(g.elapsedMs) + '</b>' + (isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
+      '<div class="result-stats"><span>時間 <b>' + fmtTime(g.elapsedMs) + '</b>' + (o.isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
       (g.timeLimitMs ? '<span>時限 <b>' + fmtTime(g.timeLimitMs) + '</b> 內完成</span>' : '') +
       '<span>失誤 <b>' + g.mistakes + '</b></span>' +
       '<span>提示 <b>' + (allow ? g.hints + '/' + allow : '—') + '</b></span></div>';
-    if (reward) {
-      var n = clearedList(g.ch).length;
-      html += '<h3 class="unlock-title">獲得 ' + esc(c.cat.name) + ' 的寫真＋叫聲</h3><div class="unlock-list">' +
-        '<div class="unlock-item">' + catArt(reward, 'photo') + '<b>' + esc(rewardName(reward)) + '</b>' +
-        '<small>「' + esc(c.name) + '」打氣叫聲 ' + n + ' 種</small></div></div>';
+    if (o.rewards.length) {
+      html += '<h3 class="unlock-title">獲得 ' + esc(c.cat.name) + ' 的' +
+        o.rewards.map(function (r) { return r.kind === 'photo' ? '寫真' : '叫聲'; }).join('＋') + '</h3><div class="unlock-list">' +
+        o.rewards.map(function (r) {
+          return '<div class="unlock-item">' + (r.kind === 'photo' ? catArt(r, 'photo') : soundArt(r)) + '<b>' + esc(rewardName(r)) + '</b>' +
+            (r.kind === 'sound' ? '<small>「' + esc(c.name) + '」打氣叫聲 ' + unlockedSounds(g.ch).length + ' 種</small>' : '') + '</div>';
+        }).join('') + '</div>';
+    } else if (o.firstClear) {
+      html += '<p class="next-goal">再過一關就能得到下一張寫真</p>';
     } else {
-      html += '<p class="next-goal">這一關的寫真與叫聲已經收藏過了</p>';
+      html += '<p class="next-goal">這一關已經通關過了，獎勵都收藏好了</p>';
     }
-    if (nextCh) html += '<div class="chapter-unlocked">已解鎖 ' + esc(chName(nextCh)) + '</div>';
-    if (ultimate) html += '<div class="chapter-unlocked">喵南西北全部制霸！終極獎勵已開啟</div>';
+    if (o.nextCh) html += '<div class="chapter-unlocked">已解鎖 ' + esc(chName(o.nextCh)) + '</div>';
+    if (o.nextLv) html += '<div class="chapter-unlocked">已解鎖 ' + esc(lvName(o.nextLv)) + '</div>';
+    if (o.gunNow) html += '<div class="chapter-unlocked gun-unlocked">獲得終極大獎：「' + esc(CONFIG.gun.name) + '」</div>';
+    if (o.allClear) html += '<div class="chapter-unlocked">喵南西北四個 Lv 全部制霸！</div>';
     var primary;
-    if (ultimate) primary = '<button class="btn primary" data-act="ultimate">打開終極獎勵</button>';
-    else if (nextCh) primary = '<button class="btn primary" data-act="nextch">前往' + esc(C(nextCh).label) + '</button>';
+    if (o.gunNow) primary = '<button class="btn primary" data-act="gun">領取終極大獎</button>';
+    else if (o.nextLv) primary = '<button class="btn primary" data-act="nextlv">前往 Lv.' + o.nextLv + '</button>';
+    else if (o.nextCh) primary = '<button class="btn primary" data-act="nextch">前往' + esc(C(o.nextCh).label) + '</button>';
     else if (g.stage < c.stages) primary = '<button class="btn primary" data-act="next">下一關</button>';
     else primary = '<button class="btn primary" data-act="again">再玩一次</button>';
     html += '<div class="modal-actions"><button class="btn ghost" data-act="gallery">收藏</button>' + primary + '</div>';
     openModal(html, function (act) {
       closeModal();
       if (act === 'gallery') showView('gallery');
-      if (act === 'ultimate') openUltimate();
-      if (act === 'nextch') switchChapter(nextCh);
+      if (act === 'gun') openGunPrize(o.nextLv);
+      if (act === 'nextlv') switchLv(o.nextLv);
+      if (act === 'nextch') switchChapter(o.nextCh);
       if (act === 'next') loadStage(g.ch, g.stage + 1);
       if (act === 'again') loadStage(g.ch, g.stage);
     });
   }
 
-  function openUltimate() {
-    var u = CONFIG.ultimateReward || {};
-    var art = '<div class="cat-art photo ultimate-art detail-art"><span class="cat-emoji">🏆</span><span class="cat-tag">終極獎勵預留</span>' +
-      (u.photo ? '<img src="' + esc(u.photo) + '" alt="" onerror="this.remove()">' : '') + '</div>';
+  function openGunPrize(nextLv) {
     Sound.win();
-    if (u.sound) setTimeout(function () { Sound.meow([u.sound], 1); }, 700);
-    openModal('<p class="modal-kicker">喵南西北・全卷完</p>' + art +
-      '<h2 class="modal-title">' + esc(u.title || '終極獎勵') + '</h2>' +
-      '<p class="story">' + esc(personalize(u.message || '')) + '</p>' +
-      '<div class="modal-actions"><button class="btn primary" data-act="close">闔上</button></div>', function () { closeModal(); });
+    openModal('<p class="modal-kicker">Lv.1 全破・終極大獎</p>' +
+      '<div class="cat-art photo detail-art gun-art" style="--c:#e6dfcf">' + ICONS.gun + '</div>' +
+      '<h2 class="modal-title">' + esc(CONFIG.gun.name) + '</h2>' +
+      '<p class="story">' + esc(personalize(CONFIG.gun.message || '')) + '</p>' +
+      '<div class="modal-actions"><button class="btn ghost" data-act="try">試射一下</button>' +
+      (nextLv ? '<button class="btn primary" data-act="nextlv">前往 Lv.' + nextLv + '</button>' :
+        '<button class="btn primary" data-act="close">收好</button>') + '</div>', function (act) {
+      closeModal();
+      if (act === 'try') startGun();
+      if (act === 'nextlv') switchLv(nextLv);
+    });
+  }
+
+  /* ---------------- 終極大獎：老子弄不到槍 ---------------- */
+
+  var gun = { on: false, firing: null, x: 0, y: 0, idle: null };
+
+  function startGun() {
+    if (!hasGun() || gun.on) return;
+    gun.on = true;
+    var layer = $('gunLayer');
+    layer.innerHTML = '<p class="gun-tip">「' + esc(CONFIG.gun.name) + '」上膛！<br>點螢幕開槍，按住可以連射</p>';
+    layer.classList.remove('hidden', 'fading');
+    Sound.click();
+    armGunIdle(4000);
+  }
+  function armGunIdle(ms) {
+    clearTimeout(gun.idle);
+    gun.idle = setTimeout(endGun, ms);
+  }
+  function shoot(x, y) {
+    var layer = $('gunLayer');
+    var size = 18 + Math.random() * 18;
+    var h = document.createElement('span');
+    h.className = 'hole';
+    h.style.cssText = 'left:' + (x - size / 2) + 'px;top:' + (y - size / 2) + 'px;width:' + size + 'px;height:' + size +
+      'px;transform:rotate(' + Math.floor(Math.random() * 360) + 'deg)';
+    layer.appendChild(h);
+    var f = document.createElement('span');
+    f.className = 'muzzle';
+    f.style.left = x + 'px';
+    f.style.top = y + 'px';
+    layer.appendChild(f);
+    setTimeout(function () { f.remove(); }, 90);
+    var tip = layer.querySelector('.gun-tip');
+    if (tip) tip.remove();
+    var holes = layer.querySelectorAll('.hole');
+    if (holes.length > 150) holes[0].remove();
+    Sound.gun(CONFIG.gun.sounds);
+    var app = $('app');
+    app.classList.remove('shake');
+    void app.offsetWidth;
+    app.classList.add('shake');
+    if (navigator.vibrate) navigator.vibrate(25);
+    armGunIdle(2500);
+  }
+  function stopFire() {
+    if (gun.firing) { clearInterval(gun.firing); gun.firing = null; }
+  }
+  function endGun() {
+    stopFire();
+    var layer = $('gunLayer');
+    layer.classList.add('fading');
+    setTimeout(function () {
+      layer.classList.add('hidden');
+      layer.classList.remove('fading');
+      layer.innerHTML = '';
+      $('app').classList.remove('shake');
+      gun.on = false;
+    }, 1300);
+  }
+  function bindGun() {
+    var layer = $('gunLayer');
+    layer.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!gun.on || layer.classList.contains('fading')) return;
+      gun.x = e.clientX;
+      gun.y = e.clientY;
+      shoot(gun.x, gun.y);
+      stopFire();
+      gun.firing = setInterval(function () {
+        shoot(gun.x + (Math.random() - 0.5) * 36, gun.y + (Math.random() - 0.5) * 36);
+      }, 110);
+    });
+    layer.addEventListener('pointermove', function (e) {
+      if (gun.firing) { gun.x = e.clientX; gun.y = e.clientY; }
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { layer.addEventListener(ev, stopFire); });
+    $('gunBtn').addEventListener('click', startGun);
   }
 
   /* ---------------- 貓貓打氣 ---------------- */
@@ -712,7 +989,7 @@
     var btns = document.querySelectorAll('.cheer-btn');
     for (var k = 0; k < btns.length; k++) {
       var ch = +btns[k].dataset.cheer;
-      var got = clearedList(ch).length;
+      var got = unlockedSounds(ch).length;
       btns[k].classList.toggle('locked', got === 0);
       btns[k].querySelector('.ico').innerHTML = got ? ICONS.sound : ICONS.lock;
       btns[k].querySelector('small').textContent = got + '/' + C(ch).stages;
@@ -720,10 +997,10 @@
   }
 
   function cheer(ch, btn) {
-    var list = REWARDS.filter(function (r) { return r.ch === ch && isUnlocked(r); });
+    var list = unlockedSounds(ch);
     if (!list.length) {
       Sound.click();
-      toast('通過「' + C(ch).name + '」' + stageText(1) + '，即可解鎖' + C(ch).cat.name + '的打氣叫聲');
+      toast('通過 Lv.1「' + C(ch).name + '」' + stageText(1) + '，即可解鎖' + C(ch).cat.name + '的打氣叫聲');
       return;
     }
     var pool = list.length > 1 ? list.filter(function (r) { return r.id !== lastCheer[ch]; }) : list;
@@ -755,7 +1032,7 @@
       inner += '<span class="cat-tag">寫真預留</span>' +
         '<img src="' + esc(photos[0]) + '" data-srcs="' + esc(JSON.stringify(photos)) + '" alt="' + esc(rewardName(r)) + '" onerror="__catImgNext(this)">';
     }
-    inner += '<span class="cat-no">' + pad2(r.stage) + '</span>';
+    inner += '<span class="cat-no">' + (r.kind === 'photo' ? r.n : pad2(r.stage)) + '</span>';
     if (extraCls === 'locked') inner += '<span class="cat-q">?</span>';
     return '<div class="' + cls + '" style="--c:' + esc(cat.color || '#ddd6c8') + '">' + inner + '</div>';
   }
@@ -765,33 +1042,42 @@
   }
 
   function renderGallery() {
-    var unlockedCount = REWARDS.filter(isUnlocked).length;
-    $('galleryProgress').textContent = '已收集 ' + unlockedCount + ' / ' + REWARDS.length + '（每關一張寫真＋一段叫聲）';
-    $('galleryBar').style.width = (unlockedCount / REWARDS.length * 100) + '%';
+    var pGot = PHOTOS.filter(isUnlocked).length, sGot = SOUNDS.filter(isUnlocked).length;
+    $('galleryProgress').textContent = '寫真 ' + pGot + ' / ' + PHOTOS.length + '・叫聲 ' + sGot + ' / ' + SOUNDS.length;
+    $('galleryBar').style.width = ((pGot + sGot) / REWARDS.length * 100) + '%';
     $('galleryModeBtn').textContent = settings.galleryPhoto ? '全部切換成：貓咪影子' : '全部切換成：彩色寫真';
-    var html = CHS.map(function (c, idx) {
-      var ch = idx + 1;
-      var list = REWARDS.filter(function (r) { return r.ch === ch; });
+    var html = MODES.map(function (m) {
+      var list = PHOTOS.filter(function (r) { return r.lv === m.lv; });
       var got = list.filter(isUnlocked).length;
-      var head = '<div class="chapter-head"><h3>' + esc(c.label) + '<small>' + esc(c.name) + '・' + esc(c.cat.name) + '</small></h3><span>' + got + ' / ' + list.length + '</span></div>';
-      var note = isChapterUnlocked(ch) ? '' : '<p class="chapter-note">完成「' + esc(C(ch - 1).name) + '」全部關卡後翻開本章</p>';
-      var cards = list.map(function (r) {
-        if (!isUnlocked(r)) {
-          return '<button class="cat-card locked" data-id="' + r.id + '">' + catArt(r, 'shadow', 'locked') +
-            '<div class="cat-sub">通過' + stageText(r.stage) + '</div></button>';
-        }
-        var mode = modeFor(r);
-        var isNew = progress.seen.indexOf(r.id) < 0;
-        return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' + catArt(r, mode) +
-          '<div class="slots"><span class="slot" data-toggle="' + r.id + '" aria-label="切換寫真/影子">' + ICONS.photo + '</span>' +
-          '<span class="slot" data-play="' + r.id + '" aria-label="播放叫聲">' + ICONS.sound + '</span></div></button>';
+      var head = '<div class="chapter-head"><h3>Lv.' + m.lv + '<small>' + esc(m.name) + '・寫真</small></h3><span>' + got + ' / ' + list.length + '</span></div>';
+      var note = isLvUnlocked(m.lv) ? '' : '<p class="chapter-note">破完 ' + esc(lvName(m.lv - 1)) + ' 全部關卡後開啟</p>';
+      var groups = CHS.map(function (c, idx) {
+        var cards = list.filter(function (r) { return r.ch === idx + 1; }).map(function (r) {
+          if (!isUnlocked(r)) {
+            return '<button class="cat-card locked" data-id="' + r.id + '">' + catArt(r, 'shadow', 'locked') +
+              '<div class="cat-sub">通過' + stageText(r.stage) + '</div></button>';
+          }
+          var isNew = progress.seen.indexOf(r.id) < 0;
+          return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' + catArt(r, modeFor(r)) +
+            '<div class="slots one"><span class="slot" data-toggle="' + r.id + '" aria-label="切換寫真/影子">' + ICONS.photo + '</span></div></button>';
+        }).join('');
+        return '<p class="sub-head">' + esc(c.label + '・' + c.name + '・' + c.cat.name) + '</p><div class="gallery-grid">' + cards + '</div>';
       }).join('');
-      return '<section class="chapter">' + head + note + '<div class="gallery-grid">' + cards + '</div></section>';
+      return '<section class="chapter">' + head + note + groups + '</section>';
     }).join('');
-    var done = allDone();
-    html += '<section class="chapter"><div class="chapter-head"><h3>終極獎勵<small>全部通關後開啟</small></h3><span>' + (done ? '已開啟' : '未開啟') + '</span></div>' +
-      '<button class="ultimate-card' + (done ? '' : ' locked') + '" data-ultimate="1">' +
-      (done ? '🏆 打開終極獎勵' : ICONS.lock + ' 完成四章全部 ' + REWARDS.length + ' 關後開啟') + '</button></section>';
+    html += '<section class="chapter"><div class="chapter-head"><h3>叫聲<small>Lv.1 每關一段</small></h3><span>' + sGot + ' / ' + SOUNDS.length + '</span></div>' +
+      CHS.map(function (c, idx) {
+        return '<p class="sub-head">' + esc(c.label + '・' + c.name + '・' + c.cat.name) + '</p><div class="sound-grid">' +
+          SOUNDS.filter(function (r) { return r.ch === idx + 1; }).map(function (r) {
+            var un = isUnlocked(r), isNew = un && progress.seen.indexOf(r.id) < 0;
+            return '<button class="sound-chip' + (un ? '' : ' locked') + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' +
+              (un ? ICONS.sound : ICONS.lock) + pad2(r.stage) + '</button>';
+          }).join('') + '</div>';
+      }).join('') + '</section>';
+    var g = hasGun();
+    html += '<section class="chapter"><div class="chapter-head"><h3>終極大獎<small>Lv.1 全破後取得</small></h3><span>' + (g ? '已取得' : '未取得') + '</span></div>' +
+      '<button class="ultimate-card' + (g ? '' : ' locked') + '" data-gun="1">' +
+      (g ? ICONS.gun + ' 「' + esc(CONFIG.gun.name) + '」' : ICONS.lock + ' 破完 Lv.1 全部 ' + lvStages() + ' 關後取得') + '</button></section>';
     $('gallery').innerHTML = html;
   }
 
@@ -800,9 +1086,19 @@
   }
 
   function onGalleryClick(e) {
-    if (e.target.closest('[data-ultimate]')) {
+    if (e.target.closest('[data-gun]')) {
       Sound.click();
-      if (allDone()) openUltimate(); else toast('完成四章全部關卡，終極獎勵就會開啟');
+      if (hasGun()) openGunPrize(0); else toast('破完 Lv.1 全部 ' + lvStages() + ' 關就能拿到槍');
+      return;
+    }
+    var chip = e.target.closest('.sound-chip');
+    if (chip) {
+      var sr = rewardById(chip.dataset.id);
+      if (!isUnlocked(sr)) { Sound.click(); toast('通過 Lv.1「' + C(sr.ch).name + '」' + stageText(sr.stage) + '即可解鎖'); return; }
+      playReward(sr);
+      markSeen(sr);
+      renderGallery();
+      renderTabs();
       return;
     }
     var card = e.target.closest('.cat-card');
@@ -811,7 +1107,7 @@
     if (!r) return;
     if (card.classList.contains('locked')) {
       Sound.click();
-      toast('通過「' + C(r.ch).name + '」' + stageText(r.stage) + '即可解鎖');
+      toast('通過 Lv.' + r.lv + '「' + C(r.ch).name + '」' + stageText(r.stage) + '即可解鎖');
       return;
     }
     if (e.target.closest('[data-toggle]')) {
@@ -820,9 +1116,8 @@
       renderGallery();
       return;
     }
-    playReward(r);
+    Sound.click();
     markSeen(r);
-    if (e.target.closest('[data-play]')) { renderGallery(); renderTabs(); return; }
     openCatDetail(r);
   }
 
@@ -830,13 +1125,12 @@
     var mode = modeFor(r);
     var cat = C(r.ch).cat;
     function html() {
-      return '<p class="modal-kicker">' + esc(chName(r.ch)) + '・' + stageText(r.stage) + '</p>' +
+      return '<p class="modal-kicker">Lv.' + r.lv + '・' + esc(chName(r.ch)) + '・第 ' + r.n + ' 張</p>' +
         catArt(r, mode, 'detail-art') +
         '<h2 class="modal-title">' + esc(rewardName(r)) + '</h2>' +
         '<p class="story">' + esc(r.caption || cat.story || '') + '</p>' +
         '<div class="modal-actions">' +
         '<button class="btn ghost" data-act="mode">' + (mode === 'shadow' ? '彩色寫真' : '貓咪影子') + '</button>' +
-        '<button class="btn ghost" data-act="meow">播放叫聲</button>' +
         '<button class="btn primary" data-act="close">闔上</button></div>';
     }
     openModal(html(), function handler(act) {
@@ -847,7 +1141,6 @@
         openModal(html(), handler);
         renderGallery();
       }
-      if (act === 'meow') playReward(r);
       if (act === 'close') closeModal();
     });
     renderGallery();
@@ -861,17 +1154,23 @@
     $('setErrorCheck').checked = settings.errorCheck;
     $('setHighlight').checked = settings.highlight;
     $('setAutoNotes').checked = settings.autoNotes;
-    var rows = CHS.map(function (c, idx) {
-      var ch = idx + 1;
-      var timed = Object.keys(c.timeLimits || {}).map(function (s) { return stageText(+s) + ' ' + c.timeLimits[s] + ' 分'; }).join('、');
-      return '<div class="stat-card"><b>' + esc(chName(ch)) + '</b><small>' + esc(c.desc) + (isChapterUnlocked(ch) ? '' : '・未解鎖') + '</small>' +
-        '<span>過關 ' + clearedList(ch).length + ' / ' + c.stages + '</span>' +
-        '<span>提示 ' + (c.hints ? '每關 ' + c.hints + ' 次' : '不能用') + '</span>' +
-        (timed ? '<span>限時 ' + esc(timed) + '</span>' : '') + '</div>';
+    var rows = MODES.map(function (m) {
+      var got = CHS.reduce(function (n, c, idx) { return n + clearedList(idx + 1, m.lv).length; }, 0);
+      var ps = PHOTOS.filter(function (r) { return r.lv === m.lv; });
+      return '<div class="stat-card"><b>' + esc(lvName(m.lv)) + '</b><small>' +
+        (isLvUnlocked(m.lv) ? (m.effect ? '每 ' + (CONFIG.chaosEveryMin || 2) + ' 分鐘搗亂一次' : '一般玩法') : '未解鎖') + '</small>' +
+        '<span>過關 ' + got + ' / ' + lvStages() + '</span>' +
+        '<span>寫真 ' + ps.filter(isUnlocked).length + ' / ' + ps.length + '</span></div>';
     });
-    rows.push('<div class="stat-card"><b>總計</b><small>全部章節</small><span>過關 ' + (progress.wins || 0) + ' 次</span>' +
+    rows.push('<div class="stat-card"><b>章節規則</b><small>每個 Lv 都一樣</small>' +
+      CHS.map(function (c) {
+        var t = Object.keys(c.timeLimits || {}).map(function (s) { return '第' + s + '關 ' + c.timeLimits[s] + '分'; }).join('、');
+        return '<span>' + esc(c.name) + '：' + c.stages + ' 關・提示 ' + (c.hints || '禁') + (t ? '・限時 ' + esc(t) : '') + '</span>';
+      }).join('') + '</div>');
+    rows.push('<div class="stat-card"><b>總計</b><small>全部 Lv</small><span>過關 ' + (progress.wins || 0) + ' 次</span>' +
       '<span>超時 ' + (progress.fails || 0) + ' 次</span>' +
-      '<span>收藏 ' + REWARDS.filter(isUnlocked).length + ' / ' + REWARDS.length + '</span></div>');
+      '<span>叫聲 ' + SOUNDS.filter(isUnlocked).length + ' / ' + SOUNDS.length + '</span>' +
+      '<span>終極大獎 ' + (hasGun() ? '已取得' : '未取得') + '</span></div>');
     $('statsList').innerHTML = rows.join('');
   }
 
@@ -890,13 +1189,14 @@
       confirmModal('重置所有進度？', '關卡、收藏與存檔都會清空，無法復原。', '確定重置', function () {
         stopTimer();
         progress = freshProgress();
-        store = { current: 1, games: {} };
+        store = { lv: 1, current: 1, games: {} };
         game = null;
         persistProgress();
         save(KEY_GAMES, store);
         renderSettings();
         toast('已重置');
         loadStage(1, 1);
+        maybeRules(1);
       });
     });
   }
@@ -911,7 +1211,11 @@
     for (i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.view === name);
     if (name === 'gallery') renderGallery();
     if (name === 'settings') renderSettings();
-    if (name === 'game') startTimer(); else { stopTimer(); cancelCountdown(); }
+    if (name === 'game') startTimer();
+    else {
+      if (!(game && game.timeLimitMs && inPlay(game))) stopTimer();
+      cancelCountdown();
+    }
     persistGame();
     window.scrollTo(0, 0);
   }
@@ -989,6 +1293,11 @@
   /* ---------------- 事件綁定 ---------------- */
 
   function bindEvents() {
+    $('lvTabs').addEventListener('click', function (e) {
+      if (e.target.closest('#rulesBtn')) { Sound.click(); showRules(store.lv); return; }
+      var b = e.target.closest('.lv-tab');
+      if (b) switchLv(+b.dataset.lv);
+    });
     $('levelTabs').addEventListener('click', function (e) {
       var b = e.target.closest('.level-tab');
       if (b) switchChapter(+b.dataset.ch);
@@ -1028,7 +1337,7 @@
     });
 
     document.addEventListener('keydown', function (e) {
-      if (currentView !== 'game' || !$('modal').classList.contains('hidden')) return;
+      if (currentView !== 'game' || !$('modal').classList.contains('hidden') || gun.on) return;
       if (isReady(game)) { if (e.key === 'Enter' || e.key === ' ') { beginGame(); e.preventDefault(); } return; }
       if (e.key >= '1' && e.key <= '9') { input(+e.key); e.preventDefault(); }
       else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); e.preventDefault(); }
@@ -1044,9 +1353,12 @@
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         cancelCountdown();
-        if (inPlay(game)) { paused = true; render(); }
+        if (inPlay(game) && !game.timeLimitMs) { paused = true; render(); }
         stopTimer();
         persistGame();
+      } else if (inPlay(game) && game.timeLimitMs) {
+        resumeTimed(game);
+        if (game.elapsedMs >= game.timeLimitMs) timeUp(); else startTimer();
       }
     });
     window.addEventListener('pagehide', function () { stopTimer(); persistGame(); });
@@ -1094,24 +1406,25 @@
     $('versionName').textContent = CONFIG.appName;
     $('versionPowered').textContent = CONFIG.poweredBy;
     var poolSize = Object.keys(STAGES).reduce(function (n, k) { return n + [].concat(STAGES[k]).length; }, 0);
-    $('appVersion').textContent = 'v1.4.0・題庫 ' + poolSize + ' 題';
+    $('appVersion').textContent = 'v2.0.0・題庫 ' + poolSize + ' 題';
+    if (!M(store.lv) || !isLvUnlocked(store.lv)) store.lv = 1;
     if (!C(store.current) || !isChapterUnlocked(store.current)) store.current = 1;
-    game = store.games[store.current] || null;
+    var saved = store.games[ck(store.lv, store.current)];
+    if (!saved || saved.completed) {
+      while (store.current < CHS.length && isChapterDone(store.current) && isChapterUnlocked(store.current + 1)) store.current++;
+      saved = store.games[ck(store.lv, store.current)];
+    }
+    buildLvTabs();
     buildLevelTabs();
     buildCheer();
     buildBoard();
     buildNumpad();
     bindEvents();
     bindSettings();
-    if (game && game.id && !game.completed) {
-      if (!game.hinted) game.hinted = [];
-      if (!game.history) game.history = [];
-      if (game.started === undefined) game.started = game.elapsedMs > 0 || hasProgress(game);
-      paused = inPlay(game);
-      render();
-    } else {
-      loadStage(store.current, nextStage(store.current));
-    }
+    bindGun();
+    if (saved && saved.id && !saved.completed) resumeGame(saved);
+    else loadStage(store.current, nextStage(store.current));
+    maybeRules(store.lv);
     registerSW();
   }
 

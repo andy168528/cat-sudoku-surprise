@@ -315,3 +315,56 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ultimate-card svg { width: 14px; height: 14px; }
 .ultimate-card.locked { border-style: dashed; color: var(--ink-3); font-size: 13px; letter-spacing: 1px; }
 .ultimate-art { --c: #e6dfcf; }
+
+/* Lv 選單 */
+.lv-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 4px; margin-bottom: 6px; }
+.lv-tab { position: relative; min-width: 0; padding: 4px 1px; border: 1px solid var(--ink-3); border-radius: 4px; background: var(--page); display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.lv-tab small { font-size: 9px; color: var(--ink-3); letter-spacing: 1px; font-family: Georgia, var(--serif); }
+.lv-tab b { font-family: var(--serif); font-size: clamp(10px, 3.1vw, 13px); white-space: nowrap; }
+.lv-tab.active { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.lv-tab.active small { color: #c9c6be; }
+.lv-tab.locked { border-style: dashed; color: var(--ink-3); }
+.lv-tab .lock { position: absolute; top: 2px; right: 3px; }
+.lv-tab .lock svg { width: 10px; height: 10px; }
+.lv-rules { padding: 0 8px; border: 1px solid var(--ink); border-radius: 4px; font-family: var(--serif); font-size: 12px; background: var(--page); }
+.rules-list { text-align: left; padding-left: 22px; margin: 10px 0; line-height: 1.8; font-family: var(--serif); color: var(--ink-2); font-size: 14px; }
+.chaos-label { color: var(--wrong); }
+
+/* 搗亂效果 */
+.cell .v { transition: transform .4s ease; }
+.cell.moved { animation: moved .6s ease; }
+@keyframes moved { 0% { background: var(--ink); } 100% { background: transparent; } }
+.cell.eaten { animation: eaten .6s ease; }
+@keyframes eaten { 0% { background: var(--wrong); } 100% { background: transparent; } }
+.board.wobble { animation: wobble .5s ease; }
+@keyframes wobble { 25% { transform: scale(1.02); } 75% { transform: scale(.98); } }
+
+/* 收藏：分組與叫聲 */
+.sub-head { font-family: var(--serif); font-size: 13px; letter-spacing: 1px; margin: 10px 0 6px; color: var(--ink-2); }
+.sound-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.sound-chip { position: relative; display: flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 0; border: 1px solid var(--ink); border-radius: 14px; background: var(--page); font-family: Georgia, var(--serif); font-size: 12px; }
+.sound-chip svg { width: 12px; height: 12px; }
+.sound-chip.locked { border-style: dashed; color: var(--ink-3); }
+.sound-chip.new::after { content: ''; position: absolute; top: 3px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--ink); }
+.slots.one { grid-template-columns: 1fr; }
+.sound-art svg { width: 40%; height: 40%; }
+.gun-art svg { width: 55%; height: 55%; stroke-width: 1.2; }
+.gun-unlocked { border-color: var(--wrong); color: var(--wrong); }
+
+/* 老子弄不到槍 */
+.cheer-head { display: flex; align-items: center; justify-content: space-between; }
+.gun-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--wrong); color: var(--wrong); border-radius: 14px; font-family: var(--serif); font-size: 12px; background: var(--page); }
+.gun-btn svg { width: 14px; height: 14px; }
+#gunLayer { position: fixed; inset: 0; z-index: 90; cursor: crosshair; touch-action: none; overflow: hidden; }
+#gunLayer.fading .hole { opacity: 0; transition: opacity 1.2s ease; }
+.gun-tip { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); margin: 0; background: var(--ink); color: var(--page); padding: 10px 16px; border-radius: 4px; font-family: var(--serif); font-size: 14px; line-height: 1.6; text-align: center; white-space: nowrap; pointer-events: none; }
+.hole { position: absolute; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #000 0 22%, #262626 30%, rgba(55,55,55,.85) 38%, rgba(120,120,120,.35) 54%, transparent 70%); }
+.hole::before, .hole::after { content: ''; position: absolute; left: 50%; top: 50%; width: 160%; height: 1px; background: rgba(30,30,30,.55); transform: translate(-50%, -50%) rotate(35deg); }
+.hole::after { width: 125%; transform: translate(-50%, -50%) rotate(-62deg); }
+.muzzle { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff7d6 0 20%, rgba(255,196,80,.85) 42%, transparent 70%); }
+#app.shake { animation: shake .12s linear; }
+@keyframes shake { 25% { transform: translate(-3px, 2px); } 50% { transform: translate(3px, -2px); } 75% { transform: translate(-2px, -1px); } }
+@media (max-width: 360px) {
+  .cheer-btn { gap: 2px; font-size: 12px; white-space: nowrap; }
+  .cheer-btn small { display: none; }
+}

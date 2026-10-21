@@ -33,12 +33,14 @@
     <main>
       <!-- 數讀 -->
       <section id="view-game" class="view active" aria-label="遊戲">
+        <div id="lvTabs" class="lv-tabs"></div>
         <div id="levelTabs" class="level-tabs" role="tablist"></div>
         <div id="stageStrip" class="stage-strip"></div>
         <p id="stageMeta" class="stage-meta"></p>
         <div class="game-info">
           <span id="levelLabel">—</span>
           <span id="gradeLabel"></span>
+          <span id="chaosLabel" class="chaos-label hidden"></span>
           <span id="filledLabel"></span>
         </div>
         <div class="board-wrap">
@@ -66,7 +68,7 @@
           </div>
         </div>
         <div class="cheer">
-          <span class="cheer-title">貓貓打氣</span>
+          <div class="cheer-head"><span class="cheer-title">貓貓打氣</span><button id="gunBtn" class="gun-btn hidden"><svg viewBox="0 0 24 24"><path d="M2 7h17l2 2v3h-8l-1.5 2.5H9L8 21H3.5l1.5-9H2z"/><path d="M10.5 12v2.5"/><path d="M19 7V5"/></svg>老子弄不到槍</button></div>
           <div id="cheerBtns" class="cheer-btns"></div>
         </div>
         <div class="tools">
@@ -105,7 +107,7 @@
           <button id="resetBtn" class="btn danger">重置所有進度</button>
         </div>
         <p id="offlineStatus" class="offline-status">檢查離線狀態中…</p>
-        <p class="version"><span id="versionName">喵南西北數讀</span> · <span id="appVersion">v1.4.0</span> · <span id="versionPowered">Powered by 鴻小兵</span></p>
+        <p class="version"><span id="versionName">喵南西北數讀</span> · <span id="appVersion">v2.0.0</span> · <span id="versionPowered">Powered by 鴻小兵</span></p>
       </section>
     </main>
 
@@ -122,6 +124,7 @@
   </div>
   <canvas id="confetti" aria-hidden="true"></canvas>
   <div id="toast" class="toast" role="status"></div>
+  <div id="gunLayer" class="hidden" aria-hidden="true"></div>
 
   <script src="js/config.js"></script>
   <script src="js/sudoku.js"></script>

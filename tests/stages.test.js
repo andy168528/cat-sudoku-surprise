@@ -14,26 +14,39 @@ const STAGES = ctx.CAT_SUDOKU_STAGES;
 const A = x => JSON.parse(JSON.stringify(x)); // 跨 vm context 的陣列需轉成本地陣列
 const chs = CONFIG.chapters;
 assert.deepStrictEqual(A(chs.map(c => c.label + '・' + c.name)), ['第一章・指西', '第二章・指北', '第三章・指南', '終章・鴻小兵']);
-assert.deepStrictEqual(A(chs.map(c => c.stages)), [15, 15, 15, 3]);
+assert.deepStrictEqual(A(chs.map(c => c.stages)), [10, 10, 10, 3]);
 assert.deepStrictEqual(A(chs.map(c => c.hints)), [3, 2, 1, 0]);
 assert.deepStrictEqual(A(chs.map(c => c.level)), [1, 2, 3, 4]);
-chs.slice(0, 3).forEach(c => assert.ok(c.timeLimits[15] > 0, c.name + ' 第15關要限時'));
+chs.slice(0, 3).forEach(c => assert.ok(c.timeLimits[10] > 0, c.name + ' 第10關要限時'));
 [1, 2, 3].forEach(s => assert.ok(chs[3].timeLimits[s] > 0, '鴻小兵第' + s + '關要限時'));
 
-assert.strictEqual(CONFIG.rewards.length, 48);
-assert.strictEqual(new Set(CONFIG.rewards.map(r => r.id)).size, 48);
+// Lv.1～4：每個 Lv 33 關，共 132 關
+assert.deepStrictEqual(A(CONFIG.modes.map(m => m.name)), ['普通', '指西作亂', '肥肥臭指北', '暴食指南貓']);
+assert.deepStrictEqual(A(CONFIG.modes.map(m => m.effect)), ['', 'shift', 'size', 'eat']);
+CONFIG.modes.forEach(m => assert.ok(m.rules.length > 0, 'Lv.' + m.lv + ' 要有規則說明'));
+assert.strictEqual(chs.reduce((n, c) => n + c.stages, 0) * CONFIG.modes.length, 132);
+const photos = CONFIG.rewards.filter(r => r.kind === 'photo'), sounds = CONFIG.rewards.filter(r => r.kind === 'sound');
+assert.strictEqual(photos.length, 72, '寫真：每 Lv 5+5+5+3');
+assert.strictEqual(sounds.length, 33, '叫聲：只有 Lv.1，每關一段');
+assert.ok(sounds.every(r => r.lv === 1));
+assert.strictEqual(new Set(CONFIG.rewards.map(r => r.id)).size, CONFIG.rewards.length);
+photos.forEach(r => assert.strictEqual(r.stage % chs[r.ch - 1].photoEvery, 0));
+assert.deepStrictEqual(A(photos.filter(r => r.lv === 1 && r.ch === 1).map(r => r.stage)), [2, 4, 6, 8, 10]);
+assert.deepStrictEqual(A(photos.filter(r => r.lv === 4 && r.ch === 4).map(r => r.stage)), [1, 2, 3]);
 CONFIG.rewards.forEach(r => {
   const m = CONFIG.mediaFor(r);
-  assert.ok(m.photos.length && m.sounds.length);
+  assert.ok(r.kind === 'photo' ? m.photos.length && !m.sounds.length : m.sounds.length && !m.photos.length);
   assert.ok(r.pitch > 0.4 && r.pitch < 2);
 });
-assert.ok(CONFIG.ultimateReward && CONFIG.ultimateReward.title);
+assert.ok(CONFIG.gun && CONFIG.gun.name === '老子弄不到槍');
 
 const toArr = s => s.split('').map(Number);
 const POOL = 20;
 const all = [];
 const solSeen = new Set();
-CONFIG.rewards.forEach(r => {
+const stageIds = [];
+chs.forEach((c, idx) => { for (let s = 1; s <= c.stages; s++) stageIds.push({ id: c.key + '-' + String(s).padStart(2, '0'), ch: idx + 1 }); });
+stageIds.forEach(r => {
   const pool = A(STAGES[r.id] || []);
   assert.ok(pool.length >= POOL, r.id + ' 題庫至少 ' + POOL + ' 題，目前 ' + pool.length);
   const lv = S.LEVELS[chs[r.ch - 1].level];
@@ -69,4 +82,4 @@ all.forEach((st, n) => {
   assert.deepStrictEqual(S.solve(t.puzzle.slice()), t.solution, id + ' 解答對應');
   if (n % 20 === 0) assert.strictEqual(S.grade(t.puzzle).level, st.g, id + ' 難度不變');
 });
-console.log('All stage/config tests passed ✅（48 關 × 題庫共 ' + all.length + ' 題，皆為唯一解）');
+console.log('All stage/config tests passed ✅（每個 Lv 33 關 × 每關 ' + POOL + ' 題，共 ' + all.length + ' 題皆為唯一解）');
