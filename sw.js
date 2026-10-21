@@ -3,7 +3,7 @@
  * 策略：stale-while-revalidate（先回快取，背景連網時再更新）。
  * 更新檔案（特別是新增照片 / 音檔）後，請把 CACHE_VERSION 加 1。
  */
-var CACHE_VERSION = 'v13';
+var CACHE_VERSION = 'v14';
 var CACHE_NAME = 'cat-sudoku-' + CACHE_VERSION;
 
 try { importScripts('js/config.js'); } catch (e) { /* config 讀取失敗時仍可運作 */ }
