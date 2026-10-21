@@ -373,3 +373,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .cat-art.detail-art:has(img) { aspect-ratio: auto; background: var(--page); }
 .cat-art.detail-art:has(img) img { position: relative; display: block; width: 100%; height: auto; max-height: 62vh; object-fit: contain; }
 .cat-art.detail-art:has(img) .cat-emoji, .cat-art.detail-art:has(img) .cat-no { display: none; }
+
+/* 設計者測試工具 */
+.test-bar { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 0 6px; padding: 4px 6px; border: 1px dashed var(--wrong); border-radius: 4px; font-size: 11px; color: var(--wrong); }
+.test-bar button { padding: 3px 10px; border: 1px solid var(--wrong); border-radius: 12px; color: var(--wrong); background: var(--page); font-size: 12px; }

@@ -25,6 +25,15 @@
   var OLD_PROGRESS = 'catSudoku.progress.v2';
   var KEY_SETTINGS = 'catSudoku.settings.v1';
   var MAX_HISTORY = 100;
+  // 測試模式：只在 Devin 預覽網址或網址加 ?test=1 時出現（?test=0 關閉），正式網址預設看不到
+  var TEST_MODE = (function () {
+    try {
+      var q = location.search;
+      if (/[?&]test=0/.test(q)) sessionStorage.removeItem('catSudoku.test');
+      else if (/[?&]test=1/.test(q) || /\.preview\.devinapps\.com$/.test(location.hostname)) sessionStorage.setItem('catSudoku.test', '1');
+      return sessionStorage.getItem('catSudoku.test') === '1';
+    } catch (e) { return false; }
+  })();
   var GRADE_TEXT = { 1: '基本技巧', 2: '區塊摒除', 3: '數對 / 數組', 4: 'X-Wing 級', 5: '超進階推理' };
   var NUM_TEXT = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
 
@@ -252,6 +261,7 @@
     $('hintCount').textContent = allow === 0 ? '禁用' : (allow - game.hints) + '/' + allow;
     $('notesBtn').classList.toggle('active', noteMode);
     $('notesState').textContent = noteMode ? '開' : '關';
+    $('testBar').classList.toggle('hidden', !TEST_MODE);
     $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
     renderReady();
     $('failOverlay').classList.toggle('hidden', !game.failed);
@@ -629,6 +639,37 @@
     if (paused) stopTimer(); else startTimer();
     persistGame();
     render();
+  }
+
+  /* ---------------- 測試工具（只在測試模式） ---------------- */
+
+  function testStart() {
+    if (!game || game.completed || game.failed) { toast('這一關已經結束，先按「重來」或選下一關'); return false; }
+    if (!game.started) { cancelCountdown(); game.started = true; }
+    paused = false;
+    return true;
+  }
+  function testAction(act) {
+    if (!TEST_MODE) return;
+    if (act === 'win') {
+      if (!testStart()) return;
+      game.values = game.solution.slice();
+      game.notes = new Array(81).fill(0);
+      persistGame();
+      render();
+      checkWin();
+    } else if (act === 'chaos') {
+      if (!game || game.lv === 1) { toast('Lv.1 沒有搗亂效果，請到 Lv.2～4 測試'); return; }
+      if (!inPlay(game)) { toast('先按「開始」再測試搗亂'); return; }
+      var eff = M(game.lv).effect, mine = 0;
+      for (var i = 0; i < 81; i++) if (!game.puzzle[i] && game.values[i]) mine++;
+      if (eff !== 'size' && !mine) { toast('先隨便填幾個數字，才有東西可以' + (eff === 'eat' ? '吃' : '推')); return; }
+      chaos();
+    } else if (act === 'timeup') {
+      if (!game || !game.timeLimitMs) { toast('這一關不是限時關（限時關在關卡列標「限」）'); return; }
+      if (!testStart()) return;
+      timeUp();
+    }
   }
 
   /* ---------------- 載入關卡 ---------------- */
@@ -1321,6 +1362,10 @@
     $('pauseBtn').addEventListener('click', function () { Sound.click(); setPaused(!paused); });
     $('resumeBtn').addEventListener('click', function () { setPaused(false); });
     $('startBtn').addEventListener('click', beginGame);
+    $('testBar').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-test]');
+      if (b) testAction(b.dataset.test);
+    });
     $('gallery').addEventListener('click', onGalleryClick);
     $('galleryModeBtn').addEventListener('click', function () {
       settings.galleryPhoto = !settings.galleryPhoto;
