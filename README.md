@@ -151,7 +151,7 @@ vercel --prod   # 正式部署
    - `media`：想用其他檔名時填路徑，例如 `'lv1-west-1': { photo: 'assets/cats/mochi.jpg' }`、`'west-01': { sound: 'assets/audio/mochi.m4a' }`。
    - `gun`：終極大獎的名稱、文字、槍聲檔。
 3. 也可以修改 `appName`、`poweredBy`、`herName`、`fromName`、`sweetMessages`。
-4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v15` → `v16`），`git push` 後重新打開 App 兩次即可更新離線快取。
+4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v16` → `v17`），`git push` 後重新打開 App 兩次即可更新離線快取。
 
 ## 🛠️ 技術說明
 
