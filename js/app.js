@@ -139,7 +139,7 @@
   function isStageUnlocked(ch, s, lv) { return isChapterUnlocked(ch, lv) && (s === 1 || isStageCleared(ch, s - 1, lv)); }
   function nextStage(ch, lv) {
     for (var s = 1; s <= C(ch).stages; s++) if (!isStageCleared(ch, s, lv)) return s;
-    return C(ch).stages;
+    return 1;
   }
   function hasGun() { return !!progress.gun || isLvDone(1); }
   function hintsAllowed(g) { return C(g.ch).hints || 0; }
@@ -829,7 +829,7 @@
     persistGame();
     store.lv = lv;
     var ch = 1;
-    while (ch < CHS.length && isChapterDone(ch, lv)) ch++;
+    while (!isLvDone(lv) && ch < CHS.length && isChapterDone(ch, lv)) ch++;
     openChapter(ch);
     maybeRules(lv);
   }
