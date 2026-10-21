@@ -262,6 +262,7 @@
     $('notesBtn').classList.toggle('active', noteMode);
     $('notesState').textContent = noteMode ? '開' : '關';
     $('testBar').classList.toggle('hidden', !TEST_MODE);
+    syncTestJump();
     $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
     renderReady();
     $('failOverlay').classList.toggle('hidden', !game.failed);
@@ -653,16 +654,25 @@
     if (!TEST_MODE) return;
     $('testLv').innerHTML = MODES.map(function (m) { return '<option value="' + m.lv + '">Lv.' + m.lv + '</option>'; }).join('');
     $('testCh').innerHTML = CHS.map(function (c, i) { return '<option value="' + (i + 1) + '">' + esc(c.name) + '</option>'; }).join('');
-    var fillStages = function () {
-      var n = C(+$('testCh').value).stages, html = '';
-      for (var k = 1; k <= n; k++) html += '<option value="' + k + '">第 ' + k + ' 關' + (limitMs(+$('testCh').value, k) ? '（限）' : '') + '</option>';
-      $('testStage').innerHTML = html;
-    };
-    $('testCh').addEventListener('change', fillStages);
-    $('testLv').value = store.lv;
-    $('testCh').value = store.current;
-    fillStages();
-    if (game) $('testStage').value = game.stage;
+    $('testCh').addEventListener('change', fillTestStages);
+    syncTestJump();
+  }
+  function fillTestStages() {
+    var ch = +$('testCh').value, n = C(ch).stages, html = '';
+    for (var k = 1; k <= n; k++) html += '<option value="' + k + '">第 ' + k + ' 關' + (limitMs(ch, k) ? '（限）' : '') + '</option>';
+    $('testStage').innerHTML = html;
+  }
+  // 跳關選單永遠跟著目前所在的 Lv／章節／關卡
+  var testSyncedId = null;
+  function syncTestJump() {
+    if (!TEST_MODE || !game || !$('testLv').options.length) return;
+    var key = game.id + '#' + game.createdAt;
+    if (key === testSyncedId) return;
+    testSyncedId = key;
+    $('testLv').value = game.lv;
+    $('testCh').value = game.ch;
+    fillTestStages();
+    $('testStage').value = game.stage;
   }
 
   // 跳到指定關卡：之前的關卡全部設為通關、之後的清空，讓解鎖與獎勵狀態一致
