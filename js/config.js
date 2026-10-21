@@ -21,7 +21,7 @@
     appName: '喵南西北數讀',
     poweredBy: 'Powered by 鴻小兵',
     herName: '老婆',
-    fromName: '老公',
+    fromName: '鴻小兵',
 
     chapters: [
       { key: 'west',  label: '第一章', name: '指西',   desc: '入門高難',   level: 1, stages: 10, hints: 3, timeLimits: { 10: 20 }, photoEvery: 2,
@@ -59,18 +59,9 @@
       message: '恭喜{name}破完 Lv.1 全部 33 關！這把槍送給妳，Lv.2～4 想發洩的時候隨時拿出來掃射。'
     },
 
-    // {name} 會被替換成 herName
+    // 過關彈窗的話（多句會隨機挑一句），下款是 fromName
     sweetMessages: [
-      '{name}好聰明！這題連貓咪都看傻了。',
-      '解題的樣子最迷人了，{name}。',
-      '又破關了！今晚的罐罐我請客。',
-      '全世界最會解數獨的就是{name}！',
-      '妳每填一個數字，我就多愛妳一點。',
-      '貓咪們排隊要跟{name}擊掌。',
-      '再難的題目都難不倒妳，就像妳總能搞定我。',
-      '飛機上也能這麼厲害，{name}是天才吧！',
-      '今天也辛苦了，給{name}一個大大的抱抱。',
-      '這一關獻給世界上最可愛的人。'
+      '勁老婆貓子'
     ]
   };
 

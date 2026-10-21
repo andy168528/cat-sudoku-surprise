@@ -883,7 +883,7 @@
     var html = '<p class="modal-kicker">Lv.' + g.lv + '・' + esc(chName(g.ch)) + '</p>' +
       '<h2 class="modal-title">' + title + '</h2>' +
       '<div class="ornament">— ✦ —</div>' +
-      '<p class="sweet">' + esc(sweet) + '<small>— 愛妳的' + esc(CONFIG.fromName) + '</small></p>' +
+      '<p class="sweet">' + esc(sweet) + '<small>— ' + esc(CONFIG.fromName) + '</small></p>' +
       '<div class="result-stats"><span>時間 <b>' + fmtTime(g.elapsedMs) + '</b>' + (o.isBest ? ' <i class="best">（新紀錄）</i>' : '') + '</span>' +
       (g.timeLimitMs ? '<span>時限 <b>' + fmtTime(g.timeLimitMs) + '</b> 內完成</span>' : '') +
       '<span>失誤 <b>' + g.mistakes + '</b></span>' +
