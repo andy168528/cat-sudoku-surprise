@@ -750,10 +750,9 @@
 
   function showRules(lv) {
     var m = M(lv);
-    var extra = lv > 1 && hasGun() ? '<p class="next-goal">終極大獎「' + esc(CONFIG.gun.name) + '」隨時可以拿出來掃射。</p>' : '';
     openModal('<p class="modal-kicker">Lv.' + lv + '・規則說明</p><h2 class="modal-title">' + esc(m.name) + '</h2>' +
       '<div class="ornament">— ✦ —</div><ol class="rules-list">' +
-      m.rules.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' + extra +
+      m.rules.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
       '<div class="modal-actions"><button class="btn primary" data-act="ok">我知道了</button></div>', function () {
       if (progress.rulesSeen.indexOf(lv) < 0) { progress.rulesSeen.push(lv); persistProgress(); }
       closeModal();
