@@ -1060,13 +1060,13 @@
           return '<button class="cat-card' + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' + catArt(r, modeFor(r)) +
             '<div class="slots one"><span class="slot" data-toggle="' + r.id + '" aria-label="切換寫真/影子">' + ICONS.photo + '</span></div></button>';
         }).join('');
-        return '<p class="sub-head">' + esc(c.label + '・' + c.name + '・' + c.cat.name) + '</p><div class="gallery-grid">' + cards + '</div>';
+        return '<p class="sub-head">' + esc(c.label + '・' + c.name) + '</p><div class="gallery-grid">' + cards + '</div>';
       }).join('');
       return '<section class="chapter">' + head + note + groups + '</section>';
     }).join('');
     html += '<section class="chapter"><div class="chapter-head"><h3>叫聲<small>Lv.1 每關一段</small></h3><span>' + sGot + ' / ' + SOUNDS.length + '</span></div>' +
       CHS.map(function (c, idx) {
-        return '<p class="sub-head">' + esc(c.label + '・' + c.name + '・' + c.cat.name) + '</p><div class="sound-grid">' +
+        return '<p class="sub-head">' + esc(c.label + '・' + c.name) + '</p><div class="sound-grid">' +
           SOUNDS.filter(function (r) { return r.ch === idx + 1; }).map(function (r) {
             var un = isUnlocked(r), isNew = un && progress.seen.indexOf(r.id) < 0;
             return '<button class="sound-chip' + (un ? '' : ' locked') + (isNew ? ' new' : '') + '" data-id="' + r.id + '">' +
@@ -1127,7 +1127,7 @@
       return '<p class="modal-kicker">Lv.' + r.lv + '・' + esc(chName(r.ch)) + '・第 ' + r.n + ' 張</p>' +
         catArt(r, mode, 'detail-art') +
         '<h2 class="modal-title">' + esc(rewardName(r)) + '</h2>' +
-        '<p class="story">' + esc(r.caption || cat.story || '') + '</p>' +
+        (r.caption || cat.story ? '<p class="story">' + esc(r.caption || cat.story) + '</p>' : '') +
         '<div class="modal-actions">' +
         '<button class="btn ghost" data-act="mode">' + (mode === 'shadow' ? '彩色寫真' : '貓咪影子') + '</button>' +
         '<button class="btn primary" data-act="close">闔上</button></div>';

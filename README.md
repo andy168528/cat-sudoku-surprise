@@ -51,9 +51,9 @@
 
 | 章節 | 貓咪 | 寫真（每個 Lv） | 叫聲（Lv.1） |
 | --- | --- | --- | --- |
-| 第一章・指西 | 小麻糬 | `assets/cats/lv1-west-1.jpg` ~ `lv1-west-5.jpg`（Lv.2 為 `lv2-west-*`，以此類推） | `assets/audio/west-01.m4a` ~ `west-10.m4a` |
-| 第二章・指北 | 雪球 | `assets/cats/lv1-north-1.jpg` ~ `lv1-north-5.jpg` | `assets/audio/north-01.m4a` ~ `north-10.m4a` |
-| 第三章・指南 | 貓王 | `assets/cats/lv1-south-1.jpg` ~ `lv1-south-5.jpg` | `assets/audio/south-01.m4a` ~ `south-10.m4a` |
+| 第一章・指西 | 指西 | `assets/cats/lv1-west-1.jpg` ~ `lv1-west-5.jpg`（Lv.2 為 `lv2-west-*`，以此類推） | `assets/audio/west-01.m4a` ~ `west-10.m4a` |
+| 第二章・指北 | 指北 | `assets/cats/lv1-north-1.jpg` ~ `lv1-north-5.jpg` | `assets/audio/north-01.m4a` ~ `north-10.m4a` |
+| 第三章・指南 | 指南 | `assets/cats/lv1-south-1.jpg` ~ `lv1-south-5.jpg` | `assets/audio/south-01.m4a` ~ `south-10.m4a` |
 | 終章・鴻小兵 | 鴻小兵 | `assets/cats/lv1-hong-1.jpg` ~ `lv1-hong-3.jpg` | `assets/audio/hong-01.m4a` ~ `hong-03.m4a` |
 
 - **貓貓打氣**：遊戲畫面有「指西／指北／指南／鴻小兵」四個按鈕，在任何 Lv 都可以一直按，每按一次從該章**已解鎖**的叫聲隨機挑一段（不會連續重複）。
@@ -151,7 +151,7 @@ vercel --prod   # 正式部署
    - `media`：想用其他檔名時填路徑，例如 `'lv1-west-1': { photo: 'assets/cats/mochi.jpg' }`、`'west-01': { sound: 'assets/audio/mochi.m4a' }`。
    - `gun`：終極大獎的名稱、文字、槍聲檔。
 3. 也可以修改 `appName`、`poweredBy`、`herName`、`fromName`、`sweetMessages`。
-4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v14` → `v15`），`git push` 後重新打開 App 兩次即可更新離線快取。
+4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v15` → `v16`），`git push` 後重新打開 App 兩次即可更新離線快取。
 
 ## 🛠️ 技術說明
 

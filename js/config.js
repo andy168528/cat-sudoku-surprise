@@ -25,13 +25,13 @@
 
     chapters: [
       { key: 'west',  label: '第一章', name: '指西',   desc: '入門高難',   level: 1, stages: 10, hints: 3, timeLimits: { 10: 20 }, photoEvery: 2,
-        cat: { name: '小麻糬', emoji: '🐱', color: '#d9c9b0', pitch: 1.15, story: '最愛窩在妳腿上打呼嚕的小麻糬。' } },
+        cat: { name: '指西', emoji: '🐱', color: '#d9c9b0', pitch: 1.15, story: '' } },
       { key: 'north', label: '第二章', name: '指北',   desc: '專家挑戰',   level: 2, stages: 10, hints: 2, timeLimits: { 10: 25 }, photoEvery: 2,
-        cat: { name: '雪球',   emoji: '🐈', color: '#d6dbe0', pitch: 1.05, story: '陪妳一路往北的白色雪球。' } },
+        cat: { name: '指北', emoji: '🐈', color: '#d6dbe0', pitch: 1.05, story: '' } },
       { key: 'south', label: '第三章', name: '指南',   desc: '地獄考驗',   level: 3, stages: 10, hints: 1, timeLimits: { 10: 30 }, photoEvery: 2,
-        cat: { name: '貓王',   emoji: '😼', color: '#c9a99a', pitch: 0.9,  story: '只有走到指南的人才能見到牠。' } },
+        cat: { name: '指南', emoji: '😼', color: '#c9a99a', pitch: 0.9,  story: '' } },
       { key: 'hong',  label: '終章',   name: '鴻小兵', desc: '超地獄考驗', level: 4, stages: 3,  hints: 0, timeLimits: { 1: 30, 2: 35, 3: 40 }, photoEvery: 1,
-        cat: { name: '鴻小兵', emoji: '🐾', color: '#c8c2b6', pitch: 0.8,  story: '傳說中的鴻小兵，親自出題。' } }
+        cat: { name: '鴻小兵', emoji: '🐾', color: '#c8c2b6', pitch: 0.8,  story: '' } }
     ],
 
     modes: [
