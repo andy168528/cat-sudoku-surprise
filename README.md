@@ -98,7 +98,7 @@ python3 -m http.server 8080      # 或 npx serve .
 
 打開 <http://localhost:8080>。（Service Worker 只能在 `https://` 或 `localhost` 下運作，直接雙擊 `index.html` 可以玩，但不會有離線快取。）
 
-**設計者測試工具**：網址後面加 `?test=1`（Devin 預覽網址會自動開啟），遊戲畫面會多一排「測試工具」：「過關」直接填好答案過關、「搗亂」立刻觸發 Lv.2～4 的搗亂效果、「時間到」直接測限時關失敗。加 `?test=0` 關閉。正式網址不加參數就不會出現。
+**設計者測試工具**：網址後面加 `?test=1`（Devin 預覽網址會自動開啟），遊戲畫面會多一排「測試工具」：「過關」直接填好答案過關、「搗亂」立刻觸發 Lv.2～4 的搗亂效果、「時間到」直接測限時關失敗；「跳關」選 Lv、章節、關卡後按「前往」直接進入該關（之前的關卡會設為通關、之後的清空）。加 `?test=0` 關閉。正式網址不加參數就不會出現。
 
 執行測試（需要 Node.js）：
 
@@ -153,7 +153,7 @@ vercel --prod   # 正式部署
    - `media`：想用其他檔名時填路徑，例如 `'lv1-west-1': { photo: 'assets/cats/mochi.jpg' }`、`'west-01': { sound: 'assets/audio/mochi.m4a' }`。
    - `gun`：終極大獎的名稱、文字、槍聲檔。
 3. 也可以修改 `appName`、`poweredBy`、`herName`、`fromName`、`sweetMessages`。
-4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v20` → `v21`），`git push` 後重新打開 App 兩次即可更新離線快取。
+4. **把 `sw.js` 的 `CACHE_VERSION` 加 1**（例如 `v21` → `v22`），`git push` 後重新打開 App 兩次即可更新離線快取。
 
 ## 🛠️ 技術說明
 

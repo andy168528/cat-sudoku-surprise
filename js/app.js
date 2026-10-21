@@ -649,8 +649,53 @@
     paused = false;
     return true;
   }
+  function buildTestJump() {
+    if (!TEST_MODE) return;
+    $('testLv').innerHTML = MODES.map(function (m) { return '<option value="' + m.lv + '">Lv.' + m.lv + '</option>'; }).join('');
+    $('testCh').innerHTML = CHS.map(function (c, i) { return '<option value="' + (i + 1) + '">' + esc(c.name) + '</option>'; }).join('');
+    var fillStages = function () {
+      var n = C(+$('testCh').value).stages, html = '';
+      for (var k = 1; k <= n; k++) html += '<option value="' + k + '">第 ' + k + ' 關' + (limitMs(+$('testCh').value, k) ? '（限）' : '') + '</option>';
+      $('testStage').innerHTML = html;
+    };
+    $('testCh').addEventListener('change', fillStages);
+    $('testLv').value = store.lv;
+    $('testCh').value = store.current;
+    fillStages();
+    if (game) $('testStage').value = game.stage;
+  }
+
+  // 跳到指定關卡：之前的關卡全部設為通關、之後的清空，讓解鎖與獎勵狀態一致
+  function testJump(lv, ch, s) {
+    var cleared = {};
+    MODES.forEach(function (m) {
+      CHS.forEach(function (c, i) {
+        var list = [];
+        for (var k = 1; k <= c.stages; k++) {
+          if (m.lv < lv || (m.lv === lv && (i + 1 < ch || (i + 1 === ch && k < s)))) list.push(k);
+        }
+        if (list.length) cleared[ck(m.lv, i + 1)] = list;
+      });
+    });
+    progress.cleared = cleared;
+    progress.gun = lv > 1;
+    persistProgress();
+    stopTimer();
+    cancelCountdown();
+    closeModal();
+    if (gun.on) endGun();
+    store.lv = lv;
+    store.current = ch;
+    delete store.games[ck(lv, ch)];
+    showView('game');
+    loadStage(ch, s);
+    toast('已跳到 Lv.' + lv + '・' + C(ch).name + '・' + stageText(s) + '（之前的關卡都設為通關）');
+    maybeRules(lv);
+  }
+
   function testAction(act) {
     if (!TEST_MODE) return;
+    if (act === 'jump') { testJump(+$('testLv').value, +$('testCh').value, +$('testStage').value); return; }
     if (act === 'win') {
       if (!testStart()) return;
       game.values = game.solution.slice();
@@ -1466,6 +1511,7 @@
     bindEvents();
     bindSettings();
     bindGun();
+    buildTestJump();
     if (saved && saved.id && !saved.completed) resumeGame(saved);
     else loadStage(store.current, nextStage(store.current));
     maybeRules(store.lv);
