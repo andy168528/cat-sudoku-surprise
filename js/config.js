@@ -18,7 +18,8 @@
  */
 (function (g) {
   var config = {
-    appName: '喵南西北',
+    appName: '喵南西北數讀',
+    // 手機主畫面顯示的 App 名稱在 manifest.json（short_name）與 index.html（apple-mobile-web-app-title）
     englishName: 'Meow Sudoku',
     poweredBy: 'Powered by 鴻小兵',
     herName: '老婆',
