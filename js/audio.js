@@ -143,22 +143,46 @@
     });
   }
 
+  // 遊戲音效：每次從貓叫聲音檔隨機挑一段（不連續重複），新的一段會先停掉上一段
+  var fxPool = [], fxLast = '', fxSrc = null;
+  function stopFx() {
+    if (fxSrc) { try { fxSrc.stop(); } catch (e) { /* 已結束 */ } fxSrc = null; }
+  }
+  function pickFx() {
+    var ok = fxPool.filter(function (u) { return !missing[u]; });
+    var list = ok.length > 1 ? ok.filter(function (u) { return u !== fxLast; }) : ok;
+    return list.length ? list[Math.floor(Math.random() * list.length)] : '';
+  }
+  function effect(tries) {
+    if (!enabled) return;
+    var url = pickFx();
+    if (!url) { synthMeow(0.8 + Math.random() * 0.6); return; }
+    fxLast = url;
+    loadBuffer(url).then(function (buf) {
+      if (!enabled) return;
+      var c = getCtx();
+      stopFx();
+      var src = c.createBufferSource();
+      src.buffer = buf;
+      src.connect(c.destination);
+      src.start(0);
+      fxSrc = src;
+      src.onended = function () { if (fxSrc === src) fxSrc = null; };
+    }).catch(function () {
+      if ((tries || 0) < 3) effect((tries || 0) + 1); else synthMeow(1);
+    });
+  }
+
   var Sound = {
     setEnabled: function (v) { enabled = !!v; },
     isEnabled: function () { return enabled; },
-    click: function () { tone({ freq: 880, dur: 0.05, vol: 0.08, type: 'triangle' }); },
-    note: function () { tone({ freq: 1320, dur: 0.04, vol: 0.05, type: 'sine' }); },
-    error: function () {
-      tone({ freq: 220, dur: 0.12, vol: 0.15, type: 'square' });
-      tone({ freq: 160, dur: 0.16, vol: 0.12, type: 'square', delay: 0.1 });
-    },
-    correct: function () { tone({ freq: 660, to: 990, dur: 0.12, vol: 0.1, type: 'triangle' }); },
-    win: function () {
-      [523, 659, 784, 1047].forEach(function (f, i) {
-        tone({ freq: f, dur: 0.25, vol: 0.14, type: 'triangle', delay: i * 0.12 });
-      });
-      tone({ freq: 1319, dur: 0.5, vol: 0.12, type: 'sine', delay: 0.5 });
-    },
+    setEffects: function (urls) { fxPool = [].concat(urls || []); },
+    effect: function () { effect(0); },
+    click: function () { effect(0); },
+    note: function () { effect(0); },
+    error: function () { effect(0); },
+    correct: function () { effect(0); },
+    win: function () { effect(0); },
     // 槍聲：有 assets/audio/gun.m4a / gun.mp3 就播放，沒有就合成
     gun: function (urls) {
       if (!enabled) return;

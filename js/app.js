@@ -110,6 +110,7 @@
   var numButtons = [];
 
   Sound.setEnabled(settings.sound);
+  Sound.setEffects(SOUNDS.map(function (r) { return CONFIG.mediaFor(r).sounds[0]; }));
 
   function persistGame() {
     if (game) {
@@ -514,7 +515,7 @@
     if (settings.autoNotes) S.PEERS[h.index].forEach(function (p) { game.notes[p] &= ~bit(h.value); });
     game.hints++;
     game.hinted.push(h.index);
-    Sound.meow(null, 1.3);
+    Sound.effect();
     toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value +
       '・剩 ' + (allow - game.hints) + ' 次');
     persistGame();
@@ -601,7 +602,7 @@
     }
     if (!msg) return;
     game.history = [];
-    Sound.meow(null, eff === 'eat' ? 0.7 : eff === 'size' ? 1.5 : 1);
+    Sound.effect();
     toast(msg);
     persistGame();
     render();
