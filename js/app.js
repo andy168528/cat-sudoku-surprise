@@ -1102,7 +1102,7 @@
     var r = pool[Math.floor(Math.random() * pool.length)];
     lastCheer[ch] = r.id;
     playReward(r);
-    toast(C(ch).cat.name + ' 為妳打氣！（第 ' + r.stage + ' 聲・共 ' + list.length + ' 種）');
+    toast(C(ch).cat.name + ' 為妳打氣！');
     btn.classList.remove('ringing');
     void btn.offsetWidth;
     btn.classList.add('ringing');
