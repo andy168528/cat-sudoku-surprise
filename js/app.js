@@ -565,6 +565,17 @@
     if (to >= 0) game.hinted[k] = to; else game.hinted.splice(k, 1);
   }
 
+  // 搗亂時播放目前章節那隻貓的叫聲（隨機一段，不連續重複）
+  var lastChaosMeow = {};
+  function chaosMeow(ch) {
+    var list = SOUNDS.filter(function (r) { return r.ch === ch; });
+    if (list.length > 1) list = list.filter(function (r) { return r.id !== lastChaosMeow[ch]; });
+    var r = list[Math.floor(Math.random() * list.length)];
+    if (!r) { Sound.effect(); return; }
+    lastChaosMeow[ch] = r.id;
+    playReward(r);
+  }
+
   function chaos() {
     game.chaosAt = (Math.floor(game.elapsedMs / CHAOS_MS) + 1) * CHAOS_MS;
     var eff = M(game.lv).effect, msg = '', hit = -1, mine = [];
@@ -602,7 +613,7 @@
     }
     if (!msg) return;
     game.history = [];
-    Sound.effect();
+    chaosMeow(game.ch);
     toast(msg);
     persistGame();
     render();
