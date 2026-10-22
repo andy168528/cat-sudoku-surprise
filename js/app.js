@@ -110,7 +110,13 @@
   var numButtons = [];
 
   Sound.setEnabled(settings.sound);
-  Sound.setEffects(SOUNDS.map(function (r) { return CONFIG.mediaFor(r).sounds[0]; }));
+  // 音效只用目前章節那隻貓的叫聲
+  var fxCh = 0;
+  function syncEffects() {
+    if (!game || game.ch === fxCh) return;
+    fxCh = game.ch;
+    Sound.setEffects(SOUNDS.filter(function (r) { return r.ch === fxCh; }).map(function (r) { return CONFIG.mediaFor(r).sounds[0]; }));
+  }
 
   function persistGame() {
     if (game) {
@@ -262,6 +268,7 @@
     $('hintCount').textContent = allow === 0 ? '禁用' : (allow - game.hints) + '/' + allow;
     $('notesBtn').classList.toggle('active', noteMode);
     $('notesState').textContent = noteMode ? '開' : '關';
+    syncEffects();
     $('testBar').classList.toggle('hidden', !TEST_MODE);
     syncTestJump();
     $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
