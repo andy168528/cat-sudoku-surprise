@@ -188,7 +188,7 @@
       correct: function () { tone({ freq: 660, to: 990, dur: 0.12, vol: 0.1, type: 'triangle' }); }
     },
     effect: function () { effect(0); },
-    click: function () { effect(0); },
+    click: function () { Sound.tap.click(); },
     note: function () { effect(0); },
     error: function () { effect(0); },
     correct: function () { effect(0); },

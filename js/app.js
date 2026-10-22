@@ -303,7 +303,7 @@
   }
   function beginGame() {
     if (!isReady(game) || countdownId) return;
-    Sound.click();
+    Sound.effect();
     var go = function () {
       countdownId = null;
       game.started = true;
@@ -501,14 +501,14 @@
   function hint() {
     if (isFrozen()) return;
     var allow = hintsAllowed(game);
-    if (allow === 0) { Sound.error(); toast(C(game.ch).name + '章不能使用提示，全靠實力！'); return; }
-    if (game.hints >= allow) { Sound.error(); toast('本關提示已用完（每關 ' + allow + ' 次）'); return; }
+    if (allow === 0) { Sound.tap.error(); toast(C(game.ch).name + '章不能使用提示，全靠實力！'); return; }
+    if (game.hints >= allow) { Sound.tap.error(); toast('本關提示已用完（每關 ' + allow + ' 次）'); return; }
     for (var i = 0; i < 81; i++) {
       if (game.values[i] && game.values[i] !== game.solution[i]) {
         selected = i;
         render();
         flash(i, 'shake');
-        Sound.error();
+        Sound.tap.error();
         toast('這一格好像不太對喔（不扣提示次數）');
         return;
       }
