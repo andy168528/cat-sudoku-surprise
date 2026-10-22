@@ -18,7 +18,8 @@
  */
 (function (g) {
   var config = {
-    appName: '喵南西北數讀',
+    appName: '喵南西北',
+    englishName: 'Meow Sudoku',
     poweredBy: 'Powered by 鴻小兵',
     herName: '老婆',
     fromName: '鴻小兵',

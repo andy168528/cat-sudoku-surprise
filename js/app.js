@@ -1499,10 +1499,10 @@
   /* ---------------- 啟動 ---------------- */
 
   function init() {
-    document.title = CONFIG.appName;
+    document.title = CONFIG.appName + ' ' + CONFIG.englishName;
     $('appName').textContent = CONFIG.appName;
-    $('poweredBy').textContent = CONFIG.poweredBy;
-    $('versionName').textContent = CONFIG.appName;
+    $('poweredBy').textContent = CONFIG.englishName + ' · ' + CONFIG.poweredBy;
+    $('versionName').textContent = CONFIG.appName + ' ' + CONFIG.englishName;
     $('versionPowered').textContent = CONFIG.poweredBy;
     var poolSize = Object.keys(STAGES).reduce(function (n, k) { return n + [].concat(STAGES[k]).length; }, 0);
     $('appVersion').textContent = 'v2.0.0・題庫 ' + poolSize + ' 題';
