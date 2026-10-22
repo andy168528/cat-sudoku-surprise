@@ -1123,7 +1123,6 @@
   function cheer(ch, btn) {
     var list = unlockedSounds(ch);
     if (!list.length) {
-      Sound.click();
       toast('通過 Lv.1「' + C(ch).name + '」' + stageText(1) + '，即可解鎖' + C(ch).cat.name + '的打氣叫聲');
       return;
     }
@@ -1218,7 +1217,7 @@
     var chip = e.target.closest('.sound-chip');
     if (chip) {
       var sr = rewardById(chip.dataset.id);
-      if (!isUnlocked(sr)) { Sound.click(); toast('通過 Lv.1「' + C(sr.ch).name + '」' + stageText(sr.stage) + '即可解鎖'); return; }
+      if (!isUnlocked(sr)) { toast('通過 Lv.1「' + C(sr.ch).name + '」' + stageText(sr.stage) + '即可解鎖'); return; }
       playReward(sr);
       markSeen(sr);
       renderGallery();
@@ -1230,7 +1229,6 @@
     var r = rewardById(card.dataset.id);
     if (!r) return;
     if (card.classList.contains('locked')) {
-      Sound.click();
       toast('通過 Lv.' + r.lv + '「' + C(r.ch).name + '」' + stageText(r.stage) + '即可解鎖');
       return;
     }
