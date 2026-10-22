@@ -2,7 +2,7 @@
  * ✏️ 客製化設定檔：名稱、Lv、章節、關卡、時限、提示次數、貓咪、獎勵都在這裡修改。
  *
  * 【Lv modes】Lv.1～Lv.4，每個 Lv 都有四章（指西 / 指北 / 指南 / 鴻小兵），上一個 Lv 全破才解鎖下一個。
- *   - effect：搗亂效果（shift 推移 / size 變大變小 / eat 吃掉），每 chaosEveryMin 分鐘（遊玩時間）一次
+ *   - effect：'chapter' = 有搗亂，效果跟章節走（見 chapters.effect），每 chaosEveryMin 分鐘（遊玩時間）一次
  *   - rules ：第一次進入該 Lv 時顯示的規則說明
  * 【章節 chapters】
  *   - stages     ：每個 Lv 裡該章的關卡數
@@ -10,6 +10,7 @@
  *   - timeLimits ：限時關卡 { 關卡編號: 分鐘 }，限時關不能暫停
  *   - level      ：題目難度（1 入門高難 / 2 專家 / 3 地獄 / 4 超地獄）
  *   - photoEvery ：每過幾關得到 1 張寫真
+ *   - effect     ：Lv.2～4 的搗亂效果（shift 推移 / size 變大變小 / eat 吃掉 / random 三種隨機）
  * 【獎勵檔名】
  *   寫真：assets/cats/lv<Lv>-<章節 key>-<第幾張>.jpg（或 .png），例如 lv1-west-1.jpg、lv4-hong-3.jpg
  *   叫聲（只有 Lv.1，每關 1 段）：assets/audio/<章節 key>-<兩位數關卡>.m4a（或 .mp3），例如 west-01.m4a
@@ -26,25 +27,25 @@
     fromName: '鴻小兵',
 
     chapters: [
-      { key: 'west',  label: '第一章', name: '指西',   desc: '入門高難',   level: 1, stages: 10, hints: 3, timeLimits: { 10: 20 }, photoEvery: 2,
+      { key: 'west',  label: '第一章', name: '指西',   desc: '入門高難',   level: 1, stages: 10, hints: 3, timeLimits: { 10: 20 }, photoEvery: 2, effect: 'shift',
         cat: { name: '指西', emoji: '🐱', color: '#d9c9b0', pitch: 1.15, story: '' } },
-      { key: 'north', label: '第二章', name: '指北',   desc: '專家挑戰',   level: 2, stages: 10, hints: 2, timeLimits: { 10: 25 }, photoEvery: 2,
+      { key: 'north', label: '第二章', name: '指北',   desc: '專家挑戰',   level: 2, stages: 10, hints: 2, timeLimits: { 10: 25 }, photoEvery: 2, effect: 'size',
         cat: { name: '指北', emoji: '🐈', color: '#d6dbe0', pitch: 1.05, story: '' } },
-      { key: 'south', label: '第三章', name: '指南',   desc: '地獄考驗',   level: 3, stages: 10, hints: 1, timeLimits: { 10: 30 }, photoEvery: 2,
+      { key: 'south', label: '第三章', name: '指南',   desc: '地獄考驗',   level: 3, stages: 10, hints: 1, timeLimits: { 10: 30 }, photoEvery: 2, effect: 'eat',
         cat: { name: '指南', emoji: '😼', color: '#c9a99a', pitch: 0.9,  story: '' } },
-      { key: 'hong',  label: '終章',   name: '鴻小兵', desc: '超地獄考驗', level: 4, stages: 3,  hints: 0, timeLimits: { 1: 30, 2: 35, 3: 40 }, photoEvery: 1,
+      { key: 'hong',  label: '終章',   name: '鴻小兵', desc: '超地獄考驗', level: 4, stages: 3,  hints: 0, timeLimits: { 1: 30, 2: 35, 3: 40 }, photoEvery: 1, effect: 'random',
         cat: { name: '鴻小兵', emoji: '🐾', color: '#c8c2b6', pitch: 0.8,  story: '' } }
     ],
 
     modes: [
       { lv: 1, name: '普通', effect: '',
         rules: ['每一列、每一行、每一個 3×3 宮都要填入 1～9，不能重複。', '標「限」的是限時關，要在時間內完成，而且不能暫停。'] },
-      { lv: 2, name: '指西作亂', effect: 'shift',
-        rules: ['指西來搗亂了！', '妳填的數字會被隨機抓走一個，往上、下、左或右推開 1～3 格（只會推到空格）。', '題目本身的數字不會被推走，被推走的數字不算失誤。'] },
-      { lv: 3, name: '肥肥臭指北', effect: 'size',
-        rules: ['肥肥臭指北來搗亂了！', '盤面上的數字會隨機明顯變大或縮小，看清楚再填喔。', '數字大小改變不影響答案。'] },
-      { lv: 4, name: '暴食指南貓', effect: 'eat',
-        rules: ['暴食指南貓肚子餓了！', '妳填的數字會被隨機吃掉一個，要自己再補回去。', '題目本身的數字不會被吃掉，被吃掉的數字不算失誤。'] }
+      { lv: 2, name: '指西作亂', effect: 'chapter',
+        rules: ['指西章：妳填的數字會被隨機抓走一個，往上、下、左或右推開 1～3 格（只會推到空格）。', '指北章：盤面上的數字會隨機明顯變大或縮小，看清楚再填喔。', '指南章：妳填的數字會被隨機吃掉一個，要自己再補回去。', '鴻小兵章：三種搗亂隨機出現。', '題目本身的數字不會被動到，被推走或吃掉的數字不算失誤。'] },
+      { lv: 3, name: '肥肥臭指北', effect: 'chapter',
+        rules: ['指西章：妳填的數字會被隨機抓走一個，往上、下、左或右推開 1～3 格（只會推到空格）。', '指北章：盤面上的數字會隨機明顯變大或縮小，看清楚再填喔。', '指南章：妳填的數字會被隨機吃掉一個，要自己再補回去。', '鴻小兵章：三種搗亂隨機出現。', '題目本身的數字不會被動到，被推走或吃掉的數字不算失誤。'] },
+      { lv: 4, name: '暴食指南貓', effect: 'chapter',
+        rules: ['指西章：妳填的數字會被隨機抓走一個，往上、下、左或右推開 1～3 格（只會推到空格）。', '指北章：盤面上的數字會隨機明顯變大或縮小，看清楚再填喔。', '指南章：妳填的數字會被隨機吃掉一個，要自己再補回去。', '鴻小兵章：三種搗亂隨機出現。', '題目本身的數字不會被動到，被推走或吃掉的數字不算失誤。'] }
     ],
     chaosEveryMin: 2,
 

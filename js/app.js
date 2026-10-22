@@ -335,7 +335,7 @@
     stat.classList.toggle('timed', timed);
     var cl = $('chaosLabel'), on = game.lv > 1 && !game.completed && !game.failed;
     cl.classList.toggle('hidden', !on);
-    if (on) cl.textContent = M(game.lv).name + ' ' + fmtTime(Math.max(0, game.chaosAt - game.elapsedMs));
+    if (on) cl.textContent = '搗亂 ' + fmtTime(Math.max(0, game.chaosAt - game.elapsedMs));
   }
 
   function buildLvTabs() {
@@ -576,10 +576,20 @@
     playReward(r);
   }
 
+  // 搗亂效果跟章節走：指西推移、指北變大變小、指南吃掉、鴻小兵三種隨機
+  function chaosEffect(g, hasMine) {
+    if (!M(g.lv).effect) return '';
+    var e = C(g.ch).effect || 'size';
+    if (e !== 'random') return e;
+    var opts = hasMine ? ['shift', 'size', 'eat'] : ['size'];
+    return opts[Math.floor(Math.random() * opts.length)];
+  }
+
   function chaos() {
     game.chaosAt = (Math.floor(game.elapsedMs / CHAOS_MS) + 1) * CHAOS_MS;
-    var eff = M(game.lv).effect, msg = '', hit = -1, mine = [];
+    var msg = '', hit = -1, mine = [];
     for (var i = 0; i < 81; i++) if (!game.puzzle[i] && game.values[i]) mine.push(i);
+    var eff = chaosEffect(game, mine.length > 0);
     if (eff === 'size') {
       var sizes = [0.45, 0.55, 0.65, 1.35, 1.5, 1.7];
       game.scales = game.values.map(function () { return sizes[Math.floor(Math.random() * sizes.length)]; });
@@ -728,9 +738,9 @@
     } else if (act === 'chaos') {
       if (!game || game.lv === 1) { toast('Lv.1 沒有搗亂效果，請到 Lv.2～4 測試'); return; }
       if (!inPlay(game)) { toast('先按「開始」再測試搗亂'); return; }
-      var eff = M(game.lv).effect, mine = 0;
+      var eff = C(game.ch).effect, mine = 0;
       for (var i = 0; i < 81; i++) if (!game.puzzle[i] && game.values[i]) mine++;
-      if (eff !== 'size' && !mine) { toast('先隨便填幾個數字，才有東西可以' + (eff === 'eat' ? '吃' : '推')); return; }
+      if ((eff === 'shift' || eff === 'eat') && !mine) { toast('先隨便填幾個數字，才有東西可以' + (eff === 'eat' ? '吃' : '推')); return; }
       chaos();
     } else if (act === 'timeup') {
       if (!game || !game.timeLimitMs) { toast('這一關不是限時關（限時關在關卡列標「限」）'); return; }

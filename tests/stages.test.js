@@ -22,7 +22,8 @@ chs.slice(0, 3).forEach(c => assert.ok(c.timeLimits[10] > 0, c.name + ' 第10關
 
 // Lv.1～4：每個 Lv 33 關，共 132 關
 assert.deepStrictEqual(A(CONFIG.modes.map(m => m.name)), ['普通', '指西作亂', '肥肥臭指北', '暴食指南貓']);
-assert.deepStrictEqual(A(CONFIG.modes.map(m => m.effect)), ['', 'shift', 'size', 'eat']);
+assert.deepStrictEqual(A(CONFIG.modes.map(m => m.effect)), ['', 'chapter', 'chapter', 'chapter']);
+assert.deepStrictEqual(A(chs.map(c => c.effect)), ['shift', 'size', 'eat', 'random']);
 CONFIG.modes.forEach(m => assert.ok(m.rules.length > 0, 'Lv.' + m.lv + ' 要有規則說明'));
 assert.strictEqual(chs.reduce((n, c) => n + c.stages, 0) * CONFIG.modes.length, 132);
 const photos = CONFIG.rewards.filter(r => r.kind === 'photo'), sounds = CONFIG.rewards.filter(r => r.kind === 'sound');
