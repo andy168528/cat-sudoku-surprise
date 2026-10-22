@@ -425,17 +425,17 @@
   function input(d) {
     if (isFrozen()) return;
     if (selected < 0) { toast('先點一個格子喔'); return; }
-    if (!canEdit()) { Sound.click(); return; }
+    if (!canEdit()) { Sound.tap.click(); return; }
     var i = selected;
     if (noteMode) {
       if (game.values[i]) return;
       pushHistory();
       game.notes[i] ^= bit(d);
-      Sound.note();
+      Sound.tap.note();
     } else if (game.values[i] === d) {
       pushHistory();
       game.values[i] = 0;
-      Sound.click();
+      Sound.tap.click();
     } else {
       pushHistory();
       game.values[i] = d;
@@ -446,14 +446,14 @@
       if (d !== game.solution[i]) {
         game.mistakes++;
         if (settings.errorCheck) {
-          Sound.error();
+          Sound.tap.error();
           flash(i, 'shake');
           if (navigator.vibrate) navigator.vibrate(80);
         } else {
-          Sound.click();
+          Sound.tap.click();
         }
       } else {
-        Sound.correct();
+        Sound.tap.correct();
         flash(i, 'pop');
       }
     }

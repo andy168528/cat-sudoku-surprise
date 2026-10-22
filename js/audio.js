@@ -177,6 +177,16 @@
     setEnabled: function (v) { enabled = !!v; },
     isEnabled: function () { return enabled; },
     setEffects: function (urls) { fxPool = [].concat(urls || []); },
+    // 填數字專用：遊戲原生音效
+    tap: {
+      click: function () { tone({ freq: 880, dur: 0.05, vol: 0.08, type: 'triangle' }); },
+      note: function () { tone({ freq: 1320, dur: 0.04, vol: 0.05, type: 'sine' }); },
+      error: function () {
+        tone({ freq: 220, dur: 0.12, vol: 0.15, type: 'square' });
+        tone({ freq: 160, dur: 0.16, vol: 0.12, type: 'square', delay: 0.1 });
+      },
+      correct: function () { tone({ freq: 660, to: 990, dur: 0.12, vol: 0.1, type: 'triangle' }); }
+    },
     effect: function () { effect(0); },
     click: function () { effect(0); },
     note: function () { effect(0); },
