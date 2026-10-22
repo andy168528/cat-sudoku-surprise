@@ -3,7 +3,7 @@
  * 策略：stale-while-revalidate（先回快取，背景連網時再更新）。
  * 更新檔案（特別是新增照片 / 音檔）後，請把 CACHE_VERSION 加 1。
  */
-var CACHE_VERSION = 'v1';
+var CACHE_VERSION = 'v34';
 var CACHE_NAME = 'cat-sudoku-' + CACHE_VERSION;
 
 try { importScripts('js/config.js'); } catch (e) { /* config 讀取失敗時仍可運作 */ }
@@ -15,6 +15,7 @@ var CORE_ASSETS = [
   './css/style.css',
   './js/config.js',
   './js/sudoku.js',
+  './js/stages.js',
   './js/audio.js',
   './js/app.js',
   './icons/icon-192.png',
@@ -25,19 +26,23 @@ var CORE_ASSETS = [
 
 function mediaAssets() {
   var cfg = self.CAT_SUDOKU_CONFIG;
-  if (!cfg || !cfg.cats) return [];
+  if (!cfg || !cfg.rewards || !cfg.mediaFor) return [];
   var out = [];
-  cfg.cats.forEach(function (c) {
-    if (c.photo) out.push('./' + c.photo.replace(/^\.?\//, ''));
-    if (c.sound) out.push('./' + c.sound.replace(/^\.?\//, ''));
+  cfg.rewards.forEach(function (r) {
+    var m = cfg.mediaFor(r);
+    m.photos.concat(m.sounds).forEach(function (u) { out.push('./' + u.replace(/^\.?\//, '')); });
   });
+  ((cfg.gun || {}).sounds || []).forEach(function (x) { out.push('./' + x.replace(/^\.?\//, '')); });
   return out;
 }
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(CORE_ASSETS).then(function () {
+      // cache: 'reload' 繞過瀏覽器 HTTP 快取，避免新版快取混入舊檔
+      return cache.addAll(CORE_ASSETS.map(function (u) {
+        return new Request(u, { cache: 'reload' });
+      })).then(function () {
         // 照片 / 音檔為選配：個別快取，缺檔不影響安裝
         return Promise.all(mediaAssets().map(function (url) {
           return cache.add(url).catch(function () {});
@@ -70,7 +75,7 @@ self.addEventListener('fetch', function (event) {
         if (!cached && isNav) return cache.match('./index.html');
         return cached;
       }).then(function (cached) {
-        var network = fetch(req).then(function (res) {
+        var network = fetch(req, { cache: 'no-cache' }).then(function (res) {
           if (res && res.ok && res.type === 'basic') {
             cache.put(isNav ? './index.html' : req, res.clone());
           }

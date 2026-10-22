@@ -1,7 +1,16 @@
-# 貓咪寫真放這裡 📸
+# 貓咪寫真
 
-1. 把照片放進這個資料夾，例如 `mimi.jpg`（建議正方形、寬 600px 以內、JPG/WebP，檔案小比較省快取空間）。
-2. 打開 `js/config.js`，把對應貓咪的 `photo` 改成 `'assets/cats/mimi.jpg'`。
-3. 把 `sw.js` 裡的 `CACHE_VERSION` 加 1（例如 `'v1'` → `'v2'`），重新部署。
+照檔名放進這個資料夾，App 會自動使用（`.jpg` 或 `.png`）。沒有檔案時顯示 Emoji 佔位圖。
 
-沒有設定照片的貓咪會自動使用 CSS + Emoji 佔位圖；「貓咪影子」模式則是自動把圖案變成黑色剪影。
+規則：`lv<Lv>-<章節 key>-<第幾張>.jpg`，每章每過 2 關一張、鴻小兵每關一張。
+
+| 章節 | key | 每個 Lv 的張數 | 例子 |
+| --- | --- | --- | --- |
+| 第一章・指西 | `west` | 5 | `lv1-west-1.jpg` ~ `lv1-west-5.jpg` |
+| 第二章・指北 | `north` | 5 | `lv1-north-1.jpg` ~ `lv1-north-5.jpg` |
+| 第三章・指南 | `south` | 5 | `lv1-south-1.jpg` ~ `lv1-south-5.jpg` |
+| 終章・鴻小兵 | `hong` | 3 | `lv1-hong-1.jpg` ~ `lv1-hong-3.jpg` |
+
+Lv.2～4 把開頭換成 `lv2-`、`lv3-`、`lv4-`，四個 Lv 共 72 張。
+
+放好後把 `sw.js` 的 `CACHE_VERSION` 加 1，離線快取才會更新。
