@@ -404,12 +404,12 @@
       (Object.keys(c.timeLimits || {}).length ? '・「限」為限時關' : '') + (got ? '・已過關卡可點選重玩' : '');
   }
 
-  function flash(i, cls) {
+  function flash(i, cls, ms) {
     var el = cells[i].el;
     el.classList.remove(cls);
     void el.offsetWidth;
     el.classList.add(cls);
-    setTimeout(function () { el.classList.remove(cls); }, 450);
+    setTimeout(function () { el.classList.remove(cls); }, ms || 450);
   }
 
   /* ---------------- 互動 ---------------- */
@@ -515,20 +515,29 @@
     }
     var h = S.findHint(game.values, game.solution);
     if (!h) return;
-    pushHistory();
     selected = h.index;
-    game.values[h.index] = h.value;
-    game.notes[h.index] = 0;
-    if (settings.autoNotes) S.PEERS[h.index].forEach(function (p) { game.notes[p] &= ~bit(h.value); });
     game.hints++;
-    game.hinted.push(h.index);
     Sound.effect();
-    toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value +
-      '・剩 ' + (allow - game.hints) + ' 次');
+    toast(hintText(h) + '\n（剩 ' + (allow - game.hints) + ' 次提示）', 9000);
     persistGame();
     render();
-    flash(h.index, 'pop');
-    checkWin();
+    flash(h.index, 'hint-mark', 2400);
+  }
+
+  var UNIT_TEXT = function (u) {
+    return u < 9 ? '第 ' + (u + 1) + ' 列' : u < 18 ? '第 ' + (u - 8) + ' 行' : '第 ' + (u - 17) + ' 宮';
+  };
+  function hintText(h) {
+    var lines = ['提示：看第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行'];
+    h.steps.forEach(function (id, n) {
+      var t = id === 'advanced'
+        ? { name: '進階推理', en: 'Advanced Reasoning', tip: '這一步需要更進階的推理，試著從候選數最少的格子開始推敲。' }
+        : S.TECHNIQUES[id];
+      var tip = t.tip.replace('{unit}', h.unit != null ? UNIT_TEXT(h.unit) : '列、行或宮');
+      var lead = h.steps.length > 1 ? (n < h.steps.length - 1 ? '先用' : '再用') : '使用';
+      lines.push(lead + '「' + t.name + ' ' + t.en + '」：' + tip);
+    });
+    return lines.join('\n');
   }
 
   function moveSelection(dr, dc) {
@@ -1364,12 +1373,12 @@
   }
 
   var toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $('toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2400);
   }
 
   function confetti() {
