@@ -260,7 +260,7 @@
     $('levelLabel').textContent = 'Lv.' + game.lv + '・' + chName(game.ch) + '・' + stageText(game.stage) + ' / ' + C(game.ch).stages;
     $('gradeLabel').textContent = '挖空 ' + game.holes + '・' + (GRADE_TEXT[game.grade] || '—');
     $('filledLabel').textContent = filled + ' / 81';
-    $('mistakes').textContent = game.mistakes;
+    $('mistakes').textContent = game.mistakes + '/' + MAX_MISTAKES;
     renderTimer();
     var allow = hintsAllowed(game);
     var hb = $('hintBtn');
@@ -274,7 +274,10 @@
     $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
     renderReady();
     $('failOverlay').classList.toggle('hidden', !game.failed);
-    if (game.failed) $('failText').textContent = '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成，再挑戰一次吧！';
+    if (game.failed) {
+      $('failTitle').textContent = game.failReason === 'mistakes' ? '失誤 ' + MAX_MISTAKES + ' 次' : '時間到';
+      $('failText').textContent = failText(game);
+    }
     $('board').classList.toggle('blur', paused || !!game.failed || isReady(game));
     $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
     $('pauseBtn').classList.toggle('disabled', !inPlay(game) || !!game.timeLimitMs);
@@ -466,6 +469,7 @@
     }
     persistGame();
     render();
+    if (game.mistakes >= MAX_MISTAKES) { failGame('mistakes'); return; }
     checkWin();
   }
 
@@ -651,11 +655,19 @@
       b.classList.add('wobble');
     }
   }
-  function timeUp() {
+  var MAX_MISTAKES = 5;
+  function failText(g) {
+    return g.failReason === 'mistakes'
+      ? '這一局已經失誤 ' + MAX_MISTAKES + ' 次，換一個新盤面重新開始吧！'
+      : '這一關要在 ' + fmtTime(g.timeLimitMs) + ' 內完成，再挑戰一次吧！';
+  }
+  function timeUp() { failGame('time'); }
+  function failGame(reason) {
     if (game.failed) return;
     game.failed = true;
+    game.failReason = reason;
     stopTimer();
-    game.elapsedMs = game.timeLimitMs;
+    if (reason === 'time') game.elapsedMs = game.timeLimitMs;
     selected = -1;
     progress.fails = (progress.fails || 0) + 1;
     persistProgress();
@@ -663,8 +675,11 @@
     render();
     Sound.error();
     openModal('<p class="modal-kicker">' + esc(chName(game.ch)) + '・' + stageText(game.stage) + '</p>' +
-      '<h2 class="modal-title">時間到</h2><div class="ornament">— ✦ —</div>' +
-      '<p class="story">這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。<br>換一個新盤面再挑戰一次，這次一定可以！</p>' +
+      '<h2 class="modal-title">' + (reason === 'mistakes' ? '失誤 ' + MAX_MISTAKES + ' 次' : '時間到') + '</h2><div class="ornament">— ✦ —</div>' +
+      '<p class="story">' + (reason === 'mistakes'
+        ? '同一局失誤 ' + MAX_MISTAKES + ' 次就算任務失敗。'
+        : '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。') +
+      '<br>換一個新盤面再挑戰一次，這次一定可以！</p>' +
       '<div class="modal-actions"><button class="btn ghost" data-act="close">稍後</button>' +
       '<button class="btn primary" data-act="retry">重新挑戰</button></div>', function (act) {
       closeModal();
