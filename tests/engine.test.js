@@ -46,4 +46,10 @@ assert.deepStrictEqual(S.generate(2, { seed: 7 }).puzzle, S.generate(2, { seed: 
 const r = S.generate(1, { seed: 99 });
 const h = S.findHint(r.puzzle, r.solution);
 assert.strictEqual(h.value, r.solution[h.index]);
+assert.ok(h.steps.length >= 1 && h.steps.every(id => id === 'advanced' || S.TECHNIQUES[id].en));
+// 困難題也要能說出技巧，且提示的格子與解答一致
+const hard = S.generate(4, { seed: 5 });
+const hh = S.findHint(hard.puzzle, hard.solution);
+assert.strictEqual(hh.value, hard.solution[hh.index]);
+console.log('hard hint steps:', hh.steps.join(' → '));
 console.log('All engine tests passed ✅');

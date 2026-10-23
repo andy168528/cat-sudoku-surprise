@@ -260,7 +260,7 @@
     $('levelLabel').textContent = 'Lv.' + game.lv + '・' + chName(game.ch) + '・' + stageText(game.stage) + ' / ' + C(game.ch).stages;
     $('gradeLabel').textContent = '挖空 ' + game.holes + '・' + (GRADE_TEXT[game.grade] || '—');
     $('filledLabel').textContent = filled + ' / 81';
-    $('mistakes').textContent = game.mistakes;
+    $('mistakes').textContent = game.mistakes + '/' + MAX_MISTAKES;
     renderTimer();
     var allow = hintsAllowed(game);
     var hb = $('hintBtn');
@@ -274,7 +274,10 @@
     $('pauseOverlay').classList.toggle('hidden', !paused || !inPlay(game));
     renderReady();
     $('failOverlay').classList.toggle('hidden', !game.failed);
-    if (game.failed) $('failText').textContent = '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成，再挑戰一次吧！';
+    if (game.failed) {
+      $('failTitle').textContent = game.failReason === 'mistakes' ? '失誤 ' + MAX_MISTAKES + ' 次' : '時間到';
+      $('failText').textContent = failText(game);
+    }
     $('board').classList.toggle('blur', paused || !!game.failed || isReady(game));
     $('pauseBtn').innerHTML = paused ? ICONS.play : ICONS.pause;
     $('pauseBtn').classList.toggle('disabled', !inPlay(game) || !!game.timeLimitMs);
@@ -303,7 +306,7 @@
   }
   function beginGame() {
     if (!isReady(game) || countdownId) return;
-    Sound.click();
+    Sound.effect();
     var go = function () {
       countdownId = null;
       game.started = true;
@@ -404,12 +407,12 @@
       (Object.keys(c.timeLimits || {}).length ? '・「限」為限時關' : '') + (got ? '・已過關卡可點選重玩' : '');
   }
 
-  function flash(i, cls) {
+  function flash(i, cls, ms) {
     var el = cells[i].el;
     el.classList.remove(cls);
     void el.offsetWidth;
     el.classList.add(cls);
-    setTimeout(function () { el.classList.remove(cls); }, 450);
+    setTimeout(function () { el.classList.remove(cls); }, ms || 450);
   }
 
   /* ---------------- 互動 ---------------- */
@@ -466,6 +469,7 @@
     }
     persistGame();
     render();
+    if (game.mistakes >= MAX_MISTAKES) { failGame('mistakes'); return; }
     checkWin();
   }
 
@@ -501,34 +505,43 @@
   function hint() {
     if (isFrozen()) return;
     var allow = hintsAllowed(game);
-    if (allow === 0) { Sound.error(); toast(C(game.ch).name + '章不能使用提示，全靠實力！'); return; }
-    if (game.hints >= allow) { Sound.error(); toast('本關提示已用完（每關 ' + allow + ' 次）'); return; }
+    if (allow === 0) { Sound.tap.error(); toast(C(game.ch).name + '章不能使用提示，全靠實力！'); return; }
+    if (game.hints >= allow) { Sound.tap.error(); toast('本關提示已用完（每關 ' + allow + ' 次）'); return; }
     for (var i = 0; i < 81; i++) {
       if (game.values[i] && game.values[i] !== game.solution[i]) {
         selected = i;
         render();
         flash(i, 'shake');
-        Sound.error();
+        Sound.tap.error();
         toast('這一格好像不太對喔（不扣提示次數）');
         return;
       }
     }
     var h = S.findHint(game.values, game.solution);
     if (!h) return;
-    pushHistory();
     selected = h.index;
-    game.values[h.index] = h.value;
-    game.notes[h.index] = 0;
-    if (settings.autoNotes) S.PEERS[h.index].forEach(function (p) { game.notes[p] &= ~bit(h.value); });
     game.hints++;
-    game.hinted.push(h.index);
     Sound.effect();
-    toast('提示（' + h.technique + '）：第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行是 ' + h.value +
-      '・剩 ' + (allow - game.hints) + ' 次');
+    toast(hintText(h) + '\n（剩 ' + (allow - game.hints) + ' 次提示）', 9000);
     persistGame();
     render();
-    flash(h.index, 'pop');
-    checkWin();
+    flash(h.index, 'hint-mark', 2400);
+  }
+
+  var UNIT_TEXT = function (u) {
+    return u < 9 ? '第 ' + (u + 1) + ' 列' : u < 18 ? '第 ' + (u - 8) + ' 行' : '第 ' + (u - 17) + ' 宮';
+  };
+  function hintText(h) {
+    var lines = ['提示：看第 ' + (S.ROW[h.index] + 1) + ' 列第 ' + (S.COL[h.index] + 1) + ' 行'];
+    h.steps.forEach(function (id, n) {
+      var t = id === 'advanced'
+        ? { name: '進階推理', en: 'Advanced Reasoning', tip: '這一步需要更進階的推理，試著從候選數最少的格子開始推敲。' }
+        : S.TECHNIQUES[id];
+      var tip = t.tip.replace('{unit}', h.unit != null ? UNIT_TEXT(h.unit) : '列、行或宮');
+      var lead = h.steps.length > 1 ? (n < h.steps.length - 1 ? '先用' : '再用') : '使用';
+      lines.push(lead + '「' + t.name + ' ' + t.en + '」：' + tip);
+    });
+    return lines.join('\n');
   }
 
   function moveSelection(dr, dc) {
@@ -642,11 +655,19 @@
       b.classList.add('wobble');
     }
   }
-  function timeUp() {
+  var MAX_MISTAKES = 5;
+  function failText(g) {
+    return g.failReason === 'mistakes'
+      ? '這一局已經失誤 ' + MAX_MISTAKES + ' 次，換一個新盤面重新開始吧！'
+      : '這一關要在 ' + fmtTime(g.timeLimitMs) + ' 內完成，再挑戰一次吧！';
+  }
+  function timeUp() { failGame('time'); }
+  function failGame(reason) {
     if (game.failed) return;
     game.failed = true;
+    game.failReason = reason;
     stopTimer();
-    game.elapsedMs = game.timeLimitMs;
+    if (reason === 'time') game.elapsedMs = game.timeLimitMs;
     selected = -1;
     progress.fails = (progress.fails || 0) + 1;
     persistProgress();
@@ -654,8 +675,11 @@
     render();
     Sound.error();
     openModal('<p class="modal-kicker">' + esc(chName(game.ch)) + '・' + stageText(game.stage) + '</p>' +
-      '<h2 class="modal-title">時間到</h2><div class="ornament">— ✦ —</div>' +
-      '<p class="story">這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。<br>換一個新盤面再挑戰一次，這次一定可以！</p>' +
+      '<h2 class="modal-title">' + (reason === 'mistakes' ? '失誤 ' + MAX_MISTAKES + ' 次' : '時間到') + '</h2><div class="ornament">— ✦ —</div>' +
+      '<p class="story">' + (reason === 'mistakes'
+        ? '同一局失誤 ' + MAX_MISTAKES + ' 次就算任務失敗。'
+        : '這一關要在 ' + fmtTime(game.timeLimitMs) + ' 內完成才算過關。') +
+      '<br>換一個新盤面再挑戰一次，這次一定可以！</p>' +
       '<div class="modal-actions"><button class="btn ghost" data-act="close">稍後</button>' +
       '<button class="btn primary" data-act="retry">重新挑戰</button></div>', function (act) {
       closeModal();
@@ -1123,7 +1147,6 @@
   function cheer(ch, btn) {
     var list = unlockedSounds(ch);
     if (!list.length) {
-      Sound.click();
       toast('通過 Lv.1「' + C(ch).name + '」' + stageText(1) + '，即可解鎖' + C(ch).cat.name + '的打氣叫聲');
       return;
     }
@@ -1218,7 +1241,7 @@
     var chip = e.target.closest('.sound-chip');
     if (chip) {
       var sr = rewardById(chip.dataset.id);
-      if (!isUnlocked(sr)) { Sound.click(); toast('通過 Lv.1「' + C(sr.ch).name + '」' + stageText(sr.stage) + '即可解鎖'); return; }
+      if (!isUnlocked(sr)) { toast('通過 Lv.1「' + C(sr.ch).name + '」' + stageText(sr.stage) + '即可解鎖'); return; }
       playReward(sr);
       markSeen(sr);
       renderGallery();
@@ -1230,7 +1253,6 @@
     var r = rewardById(card.dataset.id);
     if (!r) return;
     if (card.classList.contains('locked')) {
-      Sound.click();
       toast('通過 Lv.' + r.lv + '「' + C(r.ch).name + '」' + stageText(r.stage) + '即可解鎖');
       return;
     }
@@ -1366,12 +1388,12 @@
   }
 
   var toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $('toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2400);
   }
 
   function confetti() {

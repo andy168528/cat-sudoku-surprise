@@ -132,14 +132,22 @@
   /* ---------------- 邏輯解題（評分用） ---------------- */
 
   var TECHNIQUES = {
-    nakedSingle: { name: '唯一候選數', level: 1 },
-    hiddenSingle: { name: '隱性唯一', level: 1 },
-    lockedCandidates: { name: '區塊摒除', level: 2 },
-    nakedSubset: { name: '顯性數對/數組', level: 3 },
-    hiddenSubset: { name: '隱性數對/數組', level: 3 },
-    xWing: { name: 'X-Wing', level: 4 },
-    xyWing: { name: 'XY-Wing', level: 4 },
-    swordfish: { name: '劍魚 Swordfish', level: 4 }
+    nakedSingle: { name: '唯一候選數', en: 'Naked Single', level: 1,
+      tip: '排除同列、同行、同宮已出現的數字後，這一格只剩一個可能的數字。' },
+    hiddenSingle: { name: '隱性唯一', en: 'Hidden Single', level: 1,
+      tip: '在這一格所在的{unit}裡，有一個數字只剩這一格可以放。' },
+    lockedCandidates: { name: '區塊摒除', en: 'Locked Candidates (Pointing / Claiming)', level: 2,
+      tip: '某個數字在一個宮裡只出現在同一列或同一行（或反過來），可以把它從那一列、行或宮的其他格子排除。' },
+    nakedSubset: { name: '顯性數對/數組', en: 'Naked Pair / Triple', level: 3,
+      tip: '同一列、行或宮裡，兩格只剩相同的兩個候選數（或三格共用三個），這些數字可以從其他格子排除。' },
+    hiddenSubset: { name: '隱性數對/數組', en: 'Hidden Pair / Triple', level: 3,
+      tip: '同一列、行或宮裡，有兩個數字只能放在相同的兩格（或三個數字放在三格），這幾格的其他候選數可以刪掉。' },
+    xWing: { name: 'X 翼', en: 'X-Wing', level: 4,
+      tip: '某個數字在兩列中都只剩兩個位置，而且落在相同的兩行，就能把它從這兩行的其他格子排除（行列互換亦同）。' },
+    xyWing: { name: 'XY 翼', en: 'XY-Wing', level: 4,
+      tip: '找一個只有兩個候選數的樞紐格，配合兩個翼格，可以排除同時看得到兩個翼格的格子中的共同數字。' },
+    swordfish: { name: '劍魚', en: 'Swordfish', level: 4,
+      tip: '某個數字在三列中都只剩兩到三個位置，而且全部落在相同的三行，就能把它從這三行的其他格子排除。' }
   };
 
   function computeCandidates(vals) {
@@ -188,7 +196,7 @@
         for (var k = 0; k < 9; k++) {
           if (this.cand[cells[k]] & b) { n++; found = cells[k]; if (n > 1) break; }
         }
-        if (n === 1) return { index: found, value: d };
+        if (n === 1) return { index: found, value: d, unit: u };
       }
     }
     return null;
@@ -447,14 +455,35 @@
 
   /* ---------------- 提示 ---------------- */
 
+  // 回傳下一步可推得的格子與需要的技巧（steps：先用來排除候選數的技巧，最後一個是確定該格的技巧）
+  var ELIMINATORS = [
+    ['lockedCandidates', function (L) { return L.lockedCandidates(); }],
+    ['nakedSubset', function (L) { return L.nakedSubset(); }],
+    ['hiddenSubset', function (L) { return L.hiddenSubset(); }],
+    ['xWing', function (L) { return L.fish(2); }],
+    ['xyWing', function (L) { return L.xyWing(); }],
+    ['swordfish', function (L) { return L.fish(3); }]
+  ];
   function findHint(values, solution) {
-    var L = new Logic(values);
-    var s = L.nakedSingle();
-    if (s) return { index: s.index, value: s.value, technique: TECHNIQUES.nakedSingle.name };
-    s = L.hiddenSingle();
-    if (s) return { index: s.index, value: s.value, technique: TECHNIQUES.hiddenSingle.name };
+    var L = new Logic(values), steps = [];
+    for (var guard = 0; guard < 200; guard++) {
+      var s = L.nakedSingle();
+      if (s && solution[s.index] === s.value) {
+        return { index: s.index, value: s.value, steps: steps.concat('nakedSingle'), technique: TECHNIQUES.nakedSingle.name };
+      }
+      s = L.hiddenSingle();
+      if (s && solution[s.index] === s.value) {
+        return { index: s.index, value: s.value, unit: s.unit, steps: steps.concat('hiddenSingle'), technique: TECHNIQUES.hiddenSingle.name };
+      }
+      var used = null;
+      for (var k = 0; k < ELIMINATORS.length && !used; k++) {
+        if (ELIMINATORS[k][1](L)) used = ELIMINATORS[k][0];
+      }
+      if (!used) break;
+      if (steps.indexOf(used) < 0) steps.push(used);
+    }
     for (var i = 0; i < 81; i++) {
-      if (!values[i]) return { index: i, value: solution[i], technique: '進階推理' };
+      if (!values[i]) return { index: i, value: solution[i], steps: steps.concat('advanced'), technique: '進階推理' };
     }
     return null;
   }
